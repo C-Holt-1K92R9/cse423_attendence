@@ -1,18 +1,21 @@
 // server.js
 
+// --- ADD THIS LINE AT THE VERY TOP ---
+// This will load the variables from your .env file for local development
+require('dotenv').config();
+
 // 1. Import Dependencies
 const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise');
-// We no longer need the 'fs' module because the certificate will be in an environment variable.
 
 // 2. Initialize the App
 const app = express();
-// The PORT variable is not needed on Vercel, but we can keep it for local testing.
-const PORT = 3000;
+// Vercel provides its own port, but we define one for local testing.
+const PORT = process.env.PORT || 3000;
 
 // --- DATABASE CONNECTION SETUP FROM ENVIRONMENT VARIABLES ---
-// We now securely read connection details from process.env, which Vercel will provide.
+// Securely reads connection details from process.env (from .env locally, or Vercel settings when deployed)
 const dbPool = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -32,12 +35,12 @@ app.use(express.json());
 
 
 // 4. Define Routes
-// This route serves the main page. It is important for Vercel to know this.
+// This route serves the main page.
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// --- API ROUTE FOR ATTENDANCE (NO CHANGES HERE) ---
+// API ROUTE FOR ATTENDANCE
 app.post('/api/attend', async (req, res) => {
     const { studentId } = req.body;
 
@@ -46,10 +49,11 @@ app.post('/api/attend', async (req, res) => {
     }
 
     try {
-        const sql = "INSERT INTO records (student_id, attendance) VALUES (?, ?)";
-        const attendanceStatus = "present";
+        const attendanceColumn = 'attendance';
+        const sql = `UPDATE records SET ${attendanceColumn} = ? WHERE ID = ?`;
+        const attendanceStatus = 1;
         
-        await dbPool.execute(sql, [studentId, attendanceStatus]);
+        await dbPool.execute(sql, [attendanceStatus, studentId]);
         
         console.log(`Attendance recorded for student ID: ${studentId} with status: ${attendanceStatus}`);
         res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
@@ -60,7 +64,14 @@ app.post('/api/attend', async (req, res) => {
     }
 });
 
-// 5. EXPORT THE APP FOR VERCEL
-// We no longer call app.listen(). Vercel handles starting the server.
-// Instead, we export the app instance for Vercel to use.
+// 5. EXPORT THE APP FOR VERCEL & START SERVER LOCALLY
+// This line exports the app for Vercel's serverless environment.
 module.exports = app;
+
+// This block checks if the file is being run directly with `node server.js`.
+// If it is, it starts the server. This part is ignored by Vercel.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running for local development on http://localhost:${PORT}`);
+  });
+}
