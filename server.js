@@ -19,9 +19,18 @@ const MySQLStore = require('express-mysql-session')(session);
 // At the top of server.js, with your other imports
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const sessionStore = new MySQLStore({
-    // It will automatically use the connection options from dbPool
-}, dbPool);
+
+const dbPool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    port: process.env.DB_PORT,
+    ssl: { ca: process.env.DB_SSL_CA }
+});
+
+// 4. NOW, create the session store using the initialized dbPool
+const sessionStore = new MySQLStore({}, dbPool);
 
 // 1. Configure Express Session (place this with your other app.use() calls)
 app.use(session({
@@ -139,17 +148,7 @@ app.use(session({
 }));
 // --- DATABASE CONNECTION SETUP FROM ENVIRONMENT VARIABLES ---
 // Securely reads connection details from process.env (from .env locally, or Vercel settings when deployed)
-const dbPool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
-    port: process.env.DB_PORT,
-    // SSL is configured from an environment variable instead of a file.
-    ssl: {
-        ca: process.env.DB_SSL_CA,
-    }
-});
+
 
 
 // 3. Set up Middleware
