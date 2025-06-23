@@ -57,7 +57,7 @@ app.use(express.json());
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const yyyy = now.getFullYear();
-    new_column= `${dd}-${mm}-${yyyy}`;
+    const new_column = `${dd}_${mm}_${yyyy}`;
 
 app.get('/login', async (req, res) => {
   if (req.cookies && req.cookies.remember_me_token) {
@@ -103,21 +103,27 @@ app.get('/admin/dashboard', (req, res) => {
 });
 // 4. Define Routes
 // This route serves the main page.
+const token = "";
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // API ROUTE FOR ATTENDANCE
 app.post('/api/attend', async (req, res) => {
-    const { studentId } = req.body;
-
+    const { studentId, token } = req.body;
+    const sql = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
+    const [rows] = await dbPool.execute(sql);
+    // Check if token exists and matches the latest generated token (crypto-generated)
+    if (rows.length === 0 || !crypto.timingSafeEqual(Buffer.from(rows[0].token, 'utf8'), Buffer.from(token || '', 'utf8'))) {
+      return res.status(401).json({ success: false, message: 'Invalid or missing token.' });
+    }
     if (!studentId) {
         return res.status(400).json({ success: false, message: 'Student ID is required.' });
     }
 
     try {
-        const attendanceColumn = 'attendance';
-        const sql = `UPDATE records SET ${attendanceColumn} = ? WHERE ID = ?`;
+  
+        const sql = `UPDATE records SET ${new_column} = ? WHERE ID = ?`;
         const attendanceStatus = 1;
         
         await dbPool.execute(sql, [attendanceStatus, studentId]);
@@ -215,13 +221,13 @@ app.post('/api/login', async (req, res) => {
     try {
       // Generate a random 64-character string
       const randomString = crypto.randomBytes(32).toString('hex');
-      const sql = "INSERT INTO verification (token) VALUES (?)";
-      await dbPool.execute(sql, [randomString]);
+      const sql = "INSERT INTO verification (token, date) VALUES (?, ?)";
+      await dbPool.execute(sql, [randomString, new_column]);
       // Add a new column to the records table with the name from the variable "new_column"
       const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
       dbPool.execute(alterSql).catch(() => {});
       // Append it as a query parameter to the URL
-      const url = `https://attain423.vercel.app/?token=${randomString}`;
+      const url = `http://192.168.0.112:3000?token=${randomString}`;
 
       // Generate QR code as a Data URL string
       const qrCodeDataURL = await QRCode.toDataURL(url);

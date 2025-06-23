@@ -74,7 +74,11 @@
         form.addEventListener('submit', async (event) => {
             // 1. Prevent the form from doing its default behavior (reloading the page).
             event.preventDefault();
+            // Get the query parameters from the current URL
+            const urlParams = new URLSearchParams(window.location.search);
 
+            // Get the value of the 'token' parameter, or default to an empty string if it's not there.
+            const token = urlParams.get('token') || '';
             // 2. Get the value from the input field.
             const studentId = studentIdInput.value;
 
@@ -85,12 +89,12 @@
 
             try {
                 // 4. Send the data to your server's backend endpoint using the Fetch API.
-                const response = await fetch('/api/attend', {
+                const response = await fetch(`/api/attend`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json' // Tell the server we're sending JSON
                     },
-                    body: JSON.stringify({ studentId: studentId }) // Convert our data to a JSON string
+                    body: JSON.stringify({ studentId: studentId, token: token }) // Convert our data to a JSON string
                 });
 
                 // 5. Get the JSON response from the server.
