@@ -132,20 +132,6 @@ app.get('/auth/google/callback',
 app.use(cookieParser());
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
-app.use(session({
-    // This 'secret' is used to sign the session ID cookie.
-    // It should be a long, random string stored in your .env file for security.
-    secret: process.env.SESSION_SECRET || 'a-default-secret-for-development',
-
-    // These two options are recommended for best practices.
-    resave: false,
-    saveUninitialized: false,
-
-    cookie: { 
-        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (HTTPS)
-        maxAge: 24 * 60 * 60 * 1000 // Cookie expires in 24 hours
-    }
-}));
 // --- DATABASE CONNECTION SETUP FROM ENVIRONMENT VARIABLES ---
 // Securely reads connection details from process.env (from .env locally, or Vercel settings when deployed)
 
