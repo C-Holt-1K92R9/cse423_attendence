@@ -91,6 +91,35 @@ app.post('/api/login', async (req, res) => {
     }
 
   })
+  app.post('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8', async (req, res) => {
+    const section= req.body;
+  try {
+    // The client sends { section: "A" } (for example), so extract the value
+    const sectionValue = section.section;
+    const sql = `SELECT * FROM records WHERE Section = ?`;
+    const [rows] = await dbPool.execute(sql, [sectionValue]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'There is no data present' });
+    }
+
+    // Convert rows to CSV
+    const fields = Object.keys(rows[0] || {});
+    const csvRows = [
+      fields.join(','), // header
+      ...rows.map(row => fields.map(f => `"${(row[f] ?? '').toString().replace(/"/g, '""')}"`).join(','))
+    ];
+    const csvContent = csvRows.join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="section_${sectionValue}.csv"`);
+    res.status(200).send(csvContent);
+  }
+  catch (error) {
+    console.error("Database error:", error);
+    res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
+  }
+
+  });
 
 
 // 5. EXPORT THE APP FOR VERCEL & START SERVER LOCALLY

@@ -326,4 +326,35 @@
         </div>
     </main>
 </body>
+<script>
+    document.querySelector('.card-action form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const section = this.section.value;
+        const formData = new FormData();
+        formData.append('section', section);
+
+        const response = await fetch('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8', {
+            method: 'POST',
+            headers: {
+                        'Content-Type': 'application/json' // Tell the server we're sending JSON
+                    },
+             body: JSON.stringify({ section: section })
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `section_${section}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } else {
+            const data = await response.json().catch(() => ({}));
+            alert(data.message || 'Failed to generate report.');
+        }
+    });
+</script>
 </html>
