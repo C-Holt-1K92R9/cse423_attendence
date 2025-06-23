@@ -14,19 +14,26 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 // 2. Initialize the App
 const app = express();
-
+const MySQLStore = require('express-mysql-session')(session);
 
 // At the top of server.js, with your other imports
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-
+const sessionStore = new MySQLStore({
+    // It will automatically use the connection options from dbPool
+}, dbPool);
 
 // 1. Configure Express Session (place this with your other app.use() calls)
 app.use(session({
     secret: process.env.SESSION_SECRET,
+    // Connect session to our MySQL database store
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production' }
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
 }));
 
 // 2. Initialize Passport and connect it to the session
