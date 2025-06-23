@@ -36,6 +36,9 @@ app.use(express.json());
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
+app.get('/admin/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
 // 4. Define Routes
 // This route serves the main page.
 app.get('/', (req, res) => {
@@ -65,6 +68,30 @@ app.post('/api/attend', async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
     }
 });
+
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+   try {
+      const sql = `SELECT * FROM users WHERE Email = ?`;
+      const [rows] = await dbPool.execute(sql, [username]);
+      if (rows.length === 0) {
+        return res.status(401).json({ success: false, message: 'Invalid username or password.' });
+      }
+      const dbPassword = rows[0].Password;
+      if (password === dbPassword) {
+        res.status(200).json({ success: true, message: 'Login successful!' });
+      } else {
+        res.status(401).json({ success: false, message: 'Invalid username or password.' });
+      }
+     
+   }
+   catch (error) {
+        console.error("Database error:", error);
+        res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
+    }
+
+  })
+
 
 // 5. EXPORT THE APP FOR VERCEL & START SERVER LOCALLY
 // This line exports the app for Vercel's serverless environment.

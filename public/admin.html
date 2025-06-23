@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Modern Google Fonts and Material Icons -->
+    <link href="https://fonts.googleapis.com/css?family=Inter:400,600,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --bg: #f8fafc;
+            --card-bg: #fff;
+            --border: #e5e7eb;
+            --shadow: 0 4px 24px rgba(37, 99, 235, 0.08);
+            --radius: 16px;
+            --transition: 0.18s cubic-bezier(.4,0,.2,1);
+        }
+        html, body {
+            height: 100%;
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', Arial, sans-serif;
+            background: var(--bg);
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 1.5rem 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 12px rgba(37, 99, 235, 0.10);
+            border-bottom-left-radius: var(--radius);
+            border-bottom-right-radius: var(--radius);
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        nav {
+            display: flex;
+            gap: 1.5rem;
+        }
+        nav a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.05rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: background var(--transition), color var(--transition);
+        }
+        nav a:hover, nav a.active {
+            background: rgba(255,255,255,0.13);
+            color: #e0e7ff;
+        }
+        main {
+            margin-top: 2.5rem;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2.5rem;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 2.2rem 2rem 2rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border: 1px solid var(--border);
+            transition: box-shadow var(--transition), transform var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -40px; right: -40px;
+            width: 100px; height: 100px;
+            background: linear-gradient(135deg, var(--primary) 0%, #60a5fa 100%);
+            opacity: 0.08;
+            border-radius: 50%;
+            z-index: 0;
+        }
+        .card:hover {
+            box-shadow: 0 8px 32px rgba(37, 99, 235, 0.16);
+            transform: translateY(-4px) scale(1.012);
+        }
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.7rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 1;
+        }
+        .card-content {
+            font-size: 1.05rem;
+            color: #334155;
+            margin-bottom: 1.5rem;
+            z-index: 1;
+        }
+        .card-action {
+            margin-top: auto;
+            z-index: 1;
+            width: 100%;
+        }
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1.05rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background var(--transition), box-shadow var(--transition);
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+        }
+        .btn:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.13);
+        }
+        /* Form styling */
+        form label {
+            font-weight: 600;
+            color: #475569;
+            margin-right: 0.5rem;
+        }
+        form select {
+            padding: 0.45rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 1rem;
+            margin-left: 0.3rem;
+            background: #f1f5f9;
+            color: #1e293b;
+            outline: none;
+            transition: border var(--transition);
+        }
+        form select:focus {
+            border: 1.5px solid var(--primary);
+        }
+        form button.btn {
+            margin-top: 1.2rem;
+            width: 100%;
+        }
+        /* Responsive */
+        @media (max-width: 900px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 1.2rem 1.2rem;
+            }
+            nav {
+                margin-top: 1rem;
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+        @media (max-width: 600px) {
+            .dashboard-container {
+                padding: 0 0.5rem;
+            }
+            .card {
+                padding: 1.3rem 1rem 1rem 1rem;
+            }
+            header h1 {
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span class="material-icons" style="font-size:1.7rem;vertical-align:middle;">dashboard</span> Admin Dashboard</h1>
+        <nav id="navbar">
+            <div style="margin-left:auto;">
+                <button id="menu-toggle" aria-label="Open navigation" style="background:none;border:none;cursor:pointer;display:none;">
+                    <span class="material-icons" style="font-size:2rem;">menu</span>
+                </button>
+            </div>
+            </button>
+            <div id="nav-links" style="display:flex;gap:1.5rem;">
+            <a href="/admin.html" class="active"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">home</span> Dashboard</a>
+            <a href="/users.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">group</span> Users</a>
+            <a href="/attendance.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span> Attendance</a>
+            <a href="/logout.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
+            </div>
+        </nav>
+        <script>
+            // Hamburger menu toggle
+            const menuToggle = document.getElementById('menu-toggle');
+            const navLinks = document.getElementById('nav-links');
+            function checkWidth() {
+            if (window.innerWidth <= 600) {
+                menuToggle.style.display = 'block';
+                navLinks.style.display = 'none';
+            } else {
+                menuToggle.style.display = 'none';
+                navLinks.style.display = 'flex';
+            }
+            }
+            menuToggle.addEventListener('click', function() {
+            if (navLinks.style.display === 'none' || navLinks.style.display === '') {
+                navLinks.style.display = 'flex';
+                navLinks.style.flexDirection = 'column';
+                navLinks.style.background = '#2563eb';
+                navLinks.style.position = 'absolute';
+                navLinks.style.top = '60px';
+                navLinks.style.right = '20px';
+                navLinks.style.boxShadow = '0 4px 24px rgba(37,99,235,0.18)';
+                navLinks.style.padding = '1rem 1.5rem';
+                navLinks.style.borderRadius = '12px';
+                navLinks.style.zIndex = '100';
+                navLinks.querySelectorAll('a').forEach(a => {
+                a.style.margin = '0.5rem 0';
+                });
+            } else {
+                navLinks.style.display = 'none';
+            }
+            });
+            window.addEventListener('resize', checkWidth);
+            window.addEventListener('DOMContentLoaded', checkWidth);
+        </script>
+        <style>
+            @media (max-width: 600px) {
+            #navbar {
+                position: relative;
+                width: 100%;
+            }
+            #menu-toggle {
+                display: block !important;
+            }
+            #nav-links {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 60px;
+                right: 20px;
+                background: #2563eb;
+                box-shadow: 0 4px 24px rgba(37,99,235,0.18);
+                padding: 1rem 1.5rem;
+                border-radius: 12px;
+                z-index: 100;
+            }
+            #nav-links a {
+                margin: 0.5rem 0;
+                width: 100%;
+            }
+            }
+        </style>
+    </header>
+    <main>
+        <div class="dashboard-container">
+            <div class="card">
+                <div class="card-title"><span class="material-icons">person_add</span> Manage Users</div>
+                <div class="card-content">
+                    Add, edit, or remove users from the system.
+                </div>
+                <div class="card-action">
+                    <a href="/users.html" class="btn">Go to Users</a>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span class="material-icons">fact_check</span> Attendance Records</div>
+                <div class="card-content">
+                    View and manage attendance logs and reports.
+                </div>
+                <div class="card-action">
+                    <a href="/attendance.html" class="btn">View Attendance</a>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span class="material-icons">settings</span> Settings</div>
+                <div class="card-content">
+                    Configure system preferences and admin settings.
+                </div>
+                <div class="card-action">
+                    <a href="/settings.html" class="btn">Settings</a>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span class="material-icons">bar_chart</span> Reports</div>
+                <div class="card-content">
+                    Generate and download attendance and user reports.
+                </div>
+                <div class="card-action">
+                    <form action="">
+                        <input type="hidden" name="action" value="generate-reports">
+                        <label for="section">Section:</label>
+                        <select id="section" name="section">
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                        </select>
+                        <button type="submit" class="btn">Generate Reports</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
