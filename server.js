@@ -33,7 +33,9 @@ const dbPool = mysql.createPool({
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
 // 4. Define Routes
 // This route serves the main page.
 app.get('/', (req, res) => {
