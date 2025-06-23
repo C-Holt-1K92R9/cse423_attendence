@@ -195,8 +195,75 @@
             }
         }
     </style>
+    <style>
+        /* The overlay container that covers the entire screen */
+        .qr-overlay {
+            /* Initially hidden */
+            display: none; 
+            
+            /* Full screen positioning */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw; /* Cover the full viewport width */
+            height: 100vh; /* Cover the full viewport height */
+            
+            /* Centering the content (the QR code box) */
+            justify-content: center;
+            align-items: center;
+
+            /* The blurred background effect */
+            background-color: rgba(29, 35, 42, 0.7); /* A semi-transparent dark background */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px); /* For Safari browser support */
+
+            /* Ensure it's on top of all other content */
+            z-index: 1000; 
+        }
+
+        /* Use this class to show the overlay (e.g., add it with JavaScript) */
+        .qr-overlay.show {
+            display: flex;
+        }
+
+        /* The actual box that will contain your QR code image */
+        #qr-code-container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center; /* Ensures the QR code image is centered if it's an inline element */
+}
+
+    </style>
 </head>
 <body>
+    <div class="qr-overlay" id="qr-overlay">
+        <button id="qr-close-btn" style="
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 38px;
+            height: 38px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.13);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.18s cubic-bezier(.4,0,.2,1);
+        " title="Close">&times;</button>
+  <div id="qr-code-container">
+   
+    <!-- QR code will go here -->
+  </div>
+</div>
     <header>
         <h1><span class="material-icons" style="font-size:1.7rem;vertical-align:middle;">dashboard</span> Admin Dashboard</h1>
         <nav id="navbar">
@@ -279,12 +346,14 @@
     <main>
         <div class="dashboard-container">
             <div class="card">
-                <div class="card-title"><span class="material-icons">person_add</span> Manage Users</div>
+                <div class="card-title"><span class="material-icons">person_add</span>Take Attendence</div>
                 <div class="card-content">
-                    Add, edit, or remove users from the system.
+                    Take attendence with a verification code only for the students who are present in the class.
                 </div>
-                <div class="card-action">
-                    <a href="/users.html" class="btn">Go to Users</a>
+                <div class="card-action-attendance">
+                <form action="">
+                    <button type="submit" class="btn">Start Attendance</button>
+                </form>
                 </div>
             </div>
             <div class="card">
@@ -327,35 +396,36 @@
     </main>
 </body>
 <script>
-    
-    document.querySelector('.card-action form').addEventListener('submit', async function(e) {
+    document.getElementById('qr-close-btn').addEventListener('click', function() {
+    document.getElementById('qr-overlay').classList.remove('show');
+    document.getElementById('qr-code-container').innerHTML = '';
+});
+     document.querySelector('.card-action-attendance form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const section = this.section.value;
-        const formData = new FormData();
-        formData.append('section', section);
-
-        const response = await fetch('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8', {
+        const qrContainer = document.getElementById('qr-code-container');
+        qrContainer.innerHTML = 'Loading QR Code...';
+        const response = await fetch('/api/attendance/start', {
             method: 'POST',
             headers: {
-                        'Content-Type': 'application/json' // Tell the server we're sending JSON
-                    },
-             body: JSON.stringify({ section: section })
+                'Content-Type': 'application/json'
+            },
         });
+ try {
+        
+        
+        // 2. Get the HTML string from the response
+        const imageTagHtml = await response.text();
 
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `section_${section}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } else {
-            const data = await response.json().catch(() => ({}));
-            alert(data.message || 'Failed to generate report.');
-        }
+        // 3. Put the HTML string directly into your placeholder div
+        // The browser will automatically render the <img> tag
+        qrContainer.innerHTML = imageTagHtml;
+        document.getElementById("qr-overlay").classList.add("show");
+
+    } catch (error) {
+        console.error('Failed to load QR code:', error);
+        qrContainer.innerHTML = 'Could not load QR code.';
+    }
+       
     });
 </script>
 </html>

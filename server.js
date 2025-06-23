@@ -11,6 +11,7 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const QRCode = require('qrcode');
 // 2. Initialize the App
 const app = express();
 
@@ -49,6 +50,14 @@ const dbPool = mysql.createPool({
 // 3. Set up Middleware
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+// Set current date in dd-mm-yyyy format
+
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    new_column= `${dd}-${mm}-${yyyy}`;
 
 app.get('/login', async (req, res) => {
   if (req.cookies && req.cookies.remember_me_token) {
@@ -200,6 +209,30 @@ app.post('/api/login', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
   }
 
+  });
+  app.post('/api/attendance/start', async (req, res) => {
+    
+    try {
+      // Generate a random 64-character string
+      const randomString = crypto.randomBytes(32).toString('hex');
+      const sql = "INSERT INTO verification (token) VALUES (?)";
+      await dbPool.execute(sql, [randomString]);
+      // Add a new column to the records table with the name from the variable "new_column"
+      const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
+      dbPool.execute(alterSql).catch(() => {});
+      // Append it as a query parameter to the URL
+      const url = `https://attain423.vercel.app/?token=${randomString}`;
+
+      // Generate QR code as a Data URL string
+      const qrCodeDataURL = await QRCode.toDataURL(url);
+      
+      // Send an HTML response that displays the QR code
+      res.send(`<img src="${qrCodeDataURL}">`);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error generating QR code.');
+  }
   });
 
 
