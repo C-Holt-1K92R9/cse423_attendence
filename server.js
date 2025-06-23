@@ -186,9 +186,6 @@ app.get('/api/logout', (req, res) => {
 
 
 app.get('/admin/dashboard', (req, res) => {
-  if (!(req.session && req.session.user)) {
-        return res.redirect('/');
-    }
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 // 4. Define Routes
