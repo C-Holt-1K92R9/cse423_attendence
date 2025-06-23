@@ -210,7 +210,7 @@
             <a href="/admin.html" class="active"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">home</span> Dashboard</a>
             <a href="/users.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">group</span> Users</a>
             <a href="/attendance.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span> Attendance</a>
-            <a href="/logout.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
+            <a href="/api/logout"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
             </div>
         </nav>
         <script>
@@ -327,6 +327,7 @@
     </main>
 </body>
 <script>
+    
     document.querySelector('.card-action form').addEventListener('submit', async function(e) {
         e.preventDefault();
         const section = this.section.value;

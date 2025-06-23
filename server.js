@@ -5,9 +5,7 @@
 require('dotenv').config();
 // 1. Import it
 const cookieParser = require('cookie-parser');
-
-
-// 1. Import Dependencies
+const session = require('express-session');
 const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -19,7 +17,20 @@ const app = express();
 app.use(cookieParser());
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
+app.use(session({
+    // This 'secret' is used to sign the session ID cookie.
+    // It should be a long, random string stored in your .env file for security.
+    secret: process.env.SESSION_SECRET || 'a-default-secret-for-development',
 
+    // These two options are recommended for best practices.
+    resave: false,
+    saveUninitialized: false,
+
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (HTTPS)
+        maxAge: 24 * 60 * 60 * 1000 // Cookie expires in 24 hours
+    }
+}));
 // --- DATABASE CONNECTION SETUP FROM ENVIRONMENT VARIABLES ---
 // Securely reads connection details from process.env (from .env locally, or Vercel settings when deployed)
 const dbPool = mysql.createPool({
@@ -39,10 +50,46 @@ const dbPool = mysql.createPool({
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-app.get('/login', (req, res) => {
+app.get('/login', async (req, res) => {
+  if (req.cookies && req.cookies.remember_me_token) {
+    const sql = `SELECT * FROM auth_tokens WHERE selector = ?`;
+    const selector = req.cookies.remember_me_token.split(':')[0];
+    const [rows] = await dbPool.execute(sql, [selector]);
+    if (rows.length === 0) {
+      return res.status(401).send('Invalid remember me token.');
+    }
+    const dbHashedValidator = rows[0].hashed_validator;
+    const validator = req.cookies.remember_me_token.split(':')[1];
+    const match = await bcrypt.compare(validator, dbHashedValidator);
+    if (match) {
+        req.session.email = rows[0].user_id;
+        const sql = `SELECT * FROM users WHERE Email = ?`;
+        const [rows2] = await dbPool.execute(sql, [rows[0].user_id]);
+        req.session.name = rows2[0].Name;
+        req.session.user=1;
+      return res.redirect('/admin/dashboard');
+    }
+  }
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
+
+app.get('/api/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.status(500).send('Could not log out.');
+        } else {
+            // Also clear any "remember me" cookie if you use one
+            res.clearCookie('remember_me_token', { path: '/', httpOnly: true, secure: true });
+            res.redirect('/login');
+        }
+    });
+});
+
+
 app.get('/admin/dashboard', (req, res) => {
+  if (!(req.session && req.session.user)) {
+        return res.redirect('/');
+    }
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 // 4. Define Routes
@@ -77,6 +124,8 @@ app.post('/api/attend', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
+     // Store email in session for later use
+    
    try {
       const sql = `SELECT * FROM users WHERE Email = ?`;
       const [rows] = await dbPool.execute(sql, [email]);
@@ -88,6 +137,9 @@ app.post('/api/login', async (req, res) => {
 
       //const match = await bcrypt.compare(password, dbHashedPassword);
       if (password==dbHashedPassword) {
+        req.session.email = email;
+        req.session.name = rows[0].Name;
+        req.session.user=1; // Store user ID in session for later use
         if (rememberMe){
           const selector = crypto.randomBytes(16).toString('hex');
           const validator = crypto.randomBytes(32).toString('hex');
@@ -151,12 +203,8 @@ app.post('/api/login', async (req, res) => {
   });
 
 
-// 5. EXPORT THE APP FOR VERCEL & START SERVER LOCALLY
-// This line exports the app for Vercel's serverless environment.
 module.exports = app;
 
-// This block checks if the file is being run directly with `node server.js`.
-// If it is, it starts the server. This part is ignored by Vercel.
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server is running for local development on http://localhost:${PORT}`);
