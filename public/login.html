@@ -26,15 +26,19 @@
         
         <form id="loginForm">
             <div class="mb-4">
-                <label for="username" class="block text-gray-700 text-sm font-bold mb-2">Username</label>
-                <input type="text" id="username" name="username" class="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. something@your.domain" required>
+                <label for="email" class="block text-gray-700 text-sm font-bold mb-2">email</label>
+                <input type="text" id="email" name="email" class="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. something@your.domain" required>
             </div>
             <div class="mb-6">
                 <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Password</label>
                 <input type="password" id="password" name="password" class="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your password here" required>
             </div>
-            
+            <label class="flex items-center mb-4 w-full cursor-pointer select-none">
+                <input type="checkbox" id="rememberMe" name="rememberMe" class="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300">
+                <span class="ml-2 text-gray-700 text-sm">Remember me</span>
+            </label>
             <div class="flex items-center justify-center">
+            
                 <button type="submit" id="loginButton" class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition-colors duration-200">
                     Sign In
                 </button>
@@ -56,7 +60,8 @@
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const username = form.username.value;
+            const rememberMe = form.rememberMe.checked ? true : false;
+            const email = form.email.value;
             const password = form.password.value;
             messageArea.textContent = '';
 
@@ -64,7 +69,7 @@
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ email, password, rememberMe })
                 });
 
                 const result = await response.json();

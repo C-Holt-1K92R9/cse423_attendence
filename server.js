@@ -3,14 +3,20 @@
 // --- ADD THIS LINE AT THE VERY TOP ---
 // This will load the variables from your .env file for local development
 require('dotenv').config();
+// 1. Import it
+const cookieParser = require('cookie-parser');
+
 
 // 1. Import Dependencies
 const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise');
-
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 // 2. Initialize the App
 const app = express();
+
+app.use(cookieParser());
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
 
@@ -70,27 +76,50 @@ app.post('/api/attend', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password, rememberMe } = req.body;
    try {
       const sql = `SELECT * FROM users WHERE Email = ?`;
-      const [rows] = await dbPool.execute(sql, [username]);
+      const [rows] = await dbPool.execute(sql, [email]);
       if (rows.length === 0) {
-        return res.status(401).json({ success: false, message: 'Invalid username or password.' });
+        return res.status(401).json({ success: false, message: 'Invalid email or password.' });
       }
-      const dbPassword = rows[0].Password;
-      if (password === dbPassword) {
-        res.status(200).json({ success: true, message: 'Login successful!' });
+      const dbHashedPassword = rows[0].Password;
+      
+
+      //const match = await bcrypt.compare(password, dbHashedPassword);
+      if (password==dbHashedPassword) {
+        if (rememberMe){
+          const selector = crypto.randomBytes(16).toString('hex');
+          const validator = crypto.randomBytes(32).toString('hex');
+          const hashedValidator = await bcrypt.hash(validator, 10);
+
+          // 2. Set expiry date (e.g., 30 days from now)
+          const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+          // 3. Store in database
+          const sql = "INSERT INTO auth_tokens (selector, hashed_validator, user_id, expires) VALUES (?, ?, ?, ?)";
+          await dbPool.execute(sql, [selector, hashedValidator, email, expires]);
+
+          // 4. Create and set the cookie
+          res.cookie('remember_me_token', `${selector}:${validator}`, {
+              httpOnly: true,
+              secure: true, // In production
+              expires: expires // Use the same expiry date
+          });
+        }
+      res.status(200).json({ success: true, message: 'Login successful' });
+
       } else {
-        res.status(401).json({ success: false, message: 'Invalid username or password.' });
+        res.status(401).json({ success: false, message: 'Invalid email or password.' });
       }
      
    }
    catch (error) {
         console.error("Database error:", error);
-        res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
+        res.status(500).json({ success: false, message: ' A database error occurred.' });
     }
 
-  })
+  });
   app.post('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8', async (req, res) => {
     const section= req.body;
   try {
