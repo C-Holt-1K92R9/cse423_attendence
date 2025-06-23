@@ -15,6 +15,104 @@ const QRCode = require('qrcode');
 // 2. Initialize the App
 const app = express();
 
+
+// At the top of server.js, with your other imports
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+
+
+// 1. Configure Express Session (place this with your other app.use() calls)
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
+// 2. Initialize Passport and connect it to the session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// 3. Configure the Google Strategy for Passport
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: "/auth/google/callback" // This must match the one in your Google Cloud Console
+  },
+  async (accessToken, refreshToken, profile, done) => {
+    // This function is called after the user successfully logs in with Google.
+    // 'profile' contains the user's info (name, email, Google ID, etc.).
+    console.log('Google profile:', profile);
+
+    // Here, you would find or create a user in your database.
+    // For example:
+    // const user = await findOrCreateUser({ googleId: profile.id, email: profile.emails[0].value });
+    
+    // For now, we'll just pass the profile information along.
+    return done(null, profile);
+  }
+));
+
+// 4. Tell Passport how to save and retrieve a user from the session
+passport.serializeUser((user, done) => {
+    // Save a minimal amount of user info (e.g., the user ID) to the session.
+    done(null, user.id); // In a real app, you'd use your database user ID
+});
+
+passport.deserializeUser((id, done) => {
+    // Retrieve the full user details from the session ID.
+    // In a real app, you'd fetch this from your database using the id.
+    // For this example, we'll just pass a simple object.
+    done(null, { id: id }); // Replace with a call to your database
+});
+
+
+// The IP address you want to allow
+const ALLOWED_IP = '192.168.0.115'; // e.g., '203.0.113.42'
+
+
+const ipWhitelistMiddleware = (req, res, next) => {
+    // On platforms like Vercel, the real IP is in the 'x-forwarded-for' header.
+    // req.ip should correctly handle this if 'trust proxy' is enabled (Vercel does this).
+    // Get the IP address, handle possible IPv6 format, and extract IPv4 if present
+    let requestIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (requestIp && requestIp.includes(',')) {
+      // x-forwarded-for can be a comma-separated list
+      requestIp = requestIp.split(',')[0].trim();
+    }
+    // If IPv6 format like "::ffff:192.168.0.115", extract IPv4 part
+    if (requestIp && requestIp.startsWith('::ffff:')) {
+      requestIp = requestIp.replace('::ffff:', '');
+    }
+
+    console.log(`Incoming request from IP: ${requestIp}`); // For debugging
+
+    if (requestIp === ALLOWED_IP) {
+        // IP matches, so continue to the actual route handler
+        next();
+    } else {
+        // IP does not match, send a 'Forbidden' error
+        res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized network.' });
+    }
+};
+// Route to start the Google login process
+// When a user clicks a "Login with Google" button, they should be sent to this URL.
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] }) // 'scope' asks for user's profile info and email
+);
+
+// The callback route that Google redirects to after the user approves the login
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login' }), // If login fails, redirect to /login
+  (req, res) => {
+    // Successful authentication, redirect to the dashboard.
+    res.redirect('/admin/dashboard');
+  }
+);
+
+
+
+
 app.use(cookieParser());
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
@@ -109,11 +207,15 @@ app.get('/', (req, res) => {
 });
 
 // API ROUTE FOR ATTENDANCE
-app.post('/api/attend', async (req, res) => {
+app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
     const { studentId, token } = req.body;
+    
     const sql = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
     const [rows] = await dbPool.execute(sql);
     // Check if token exists and matches the latest generated token (crypto-generated)
+    if (req.cookies.attended){
+      return res.status(401).json({ success: false, message: 'Your device already has an entry' });
+    }
     if (rows.length === 0 || !crypto.timingSafeEqual(Buffer.from(rows[0].token, 'utf8'), Buffer.from(token || '', 'utf8'))) {
       return res.status(401).json({ success: false, message: 'Invalid or missing token.' });
     }
@@ -128,7 +230,12 @@ app.post('/api/attend', async (req, res) => {
         
         await dbPool.execute(sql, [attendanceStatus, studentId]);
         
-        console.log(`Attendance recorded for student ID: ${studentId} with status: ${attendanceStatus}`);
+        // Set a cookie named "attendance" with value 1, expires in 1.5 days (36 hours)
+        res.cookie('attended', 1, {
+            maxAge: 36 * 60 * 60 * 1000, // 36 hours in milliseconds
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production'
+        });
         res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
 
     } catch (error) {
@@ -221,8 +328,11 @@ app.post('/api/login', async (req, res) => {
     try {
       // Generate a random 64-character string
       const randomString = crypto.randomBytes(32).toString('hex');
+      const trial = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
+      const [rows] = await dbPool.execute(trial);
       const sql = "INSERT INTO verification (token, date) VALUES (?, ?)";
       await dbPool.execute(sql, [randomString, new_column]);
+
       // Add a new column to the records table with the name from the variable "new_column"
       const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
       dbPool.execute(alterSql).catch(() => {});
