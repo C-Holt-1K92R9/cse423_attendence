@@ -15,7 +15,7 @@ const QRCode = require('qrcode');
 // 2. Initialize the App
 const app = express();
 const MySQLStore = require('express-mysql-session')(session);
-
+app.use(cookieParser());
 // At the top of server.js, with your other imports
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -53,35 +53,110 @@ app.use(passport.session());
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback" // This must match the one in your Google Cloud Console
+    callbackURL: "/auth/google/callback",
+    // Note: `passReqToCallback` is not needed for this corrected logic.
   },
   async (accessToken, refreshToken, profile, done) => {
     // This function is called after the user successfully logs in with Google.
     // 'profile' contains the user's info (name, email, Google ID, etc.).
-    console.log('Google profile:', profile);
+    const { id: googleId, displayName: name } = profile;
+    const email = profile.emails && profile.emails.length > 0 ? profile.emails[0].value : null;
 
-    // Here, you would find or create a user in your database.
-    // For example:
-    // const user = await findOrCreateUser({ googleId: profile.id, email: profile.emails[0].value });
-    
-    // For now, we'll just pass the profile information along.
-    return done(null, profile);
+    if (!email) {
+      return done(new Error("No email found in Google profile"), null);
+    }
+
+    try {
+      // Check if user already exists
+      let [rows] = await dbPool.execute(
+        'SELECT * FROM users WHERE google_id = ? OR Email = ?',
+        [googleId, email]
+      );
+
+      let user = rows[0];
+
+      if (!user) {
+        // Insert new user if they don't exist
+        const [insertResult] = await dbPool.execute(
+          'INSERT INTO users (Name, Email, google_id) VALUES (?, ?, ?)',
+          [name, email, googleId]
+        );
+        // We need the newly created user object, including the ID.
+        [rows] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [insertResult.insertId]);
+        user = rows[0];
+      }
+      
+      // Pass the user object to the next step in the authentication flow.
+      return done(null, user);
+
+    } catch (err) {
+      console.error('Error during Google user verification:', err);
+      return done(err, null);
+    }
   }
 ));
 
-// 4. Tell Passport how to save and retrieve a user from the session
+// This is a necessary step to manage the user's session.
+// It stores the user ID in the session.
 passport.serializeUser((user, done) => {
-    // Save a minimal amount of user info (e.g., the user ID) to the session.
-    done(null, user.id); // In a real app, you'd use your database user ID
+  done(null, user.id); 
 });
 
-passport.deserializeUser((id, done) => {
-    // Retrieve the full user details from the session ID.
-    // In a real app, you'd fetch this from your database using the id.
-    // For this example, we'll just pass a simple object.
-    done(null, { id: id }); // Replace with a call to your database
+// It retrieves the full user details from the database based on the ID in the session.
+passport.deserializeUser(async (id, done) => {
+  try {
+    const [rows] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [id]);
+    done(null, rows[0]);
+  } catch (err) {
+    done(err, null);
+  }
 });
 
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] }) // 'scope' asks for user's profile info and email
+);
+// 2. SETUP THE AUTHENTICATION ROUTE
+// This is the correct place to handle the response, including setting cookies.
+app.get('/auth/google/callback', 
+  // This middleware triggers the Passport authentication flow.
+  passport.authenticate('google', { 
+    failureRedirect: '/login', // Redirect if authentication fails
+    session: false // We are using a custom token, so we can disable sessions here if we want
+  }),
+  // This function executes only on successful authentication.
+  async (req, res) => {
+    // The authenticated user object is available on `req.user`.
+    const user = req.user;
+
+    try {
+      // 1. Generate secure tokens
+      const selector = crypto.randomBytes(16).toString('hex');
+      const validator = crypto.randomBytes(32).toString('hex');
+      const hashedValidator = await bcrypt.hash(validator, 10);
+
+      // 2. Set expiry date (e.g., 30 days from now)
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      // 3. Store in the database, linked to the user's email or ID
+      const sql = "INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)";
+      await dbPool.execute(sql, [selector, hashedValidator, user.Email, expires]);
+
+      // 4. Create and set the cookie on the response object
+      res.cookie('remember_me_token', `${selector}:${validator}`, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+          expires: expires
+      });
+
+      // 5. Redirect the user to the desired page
+      res.redirect('/student');
+
+    } catch(err) {
+      console.error('Error creating remember_me token:', err);
+      res.redirect('/login?error=auth_failed');
+    }
+  }
+);
 
 // The IP address you want to allow
 const ALLOWED_IP = '192.168.0.115'; // e.g., '203.0.113.42'
@@ -111,25 +186,13 @@ const ipWhitelistMiddleware = (req, res, next) => {
         res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized network.' });
     }
 };
-// Route to start the Google login process
-// When a user clicks a "Login with Google" button, they should be sent to this URL.
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] }) // 'scope' asks for user's profile info and email
-);
-
-// The callback route that Google redirects to after the user approves the login
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/login' }), // If login fails, redirect to /login
-  (req, res) => {
-    // Successful authentication, redirect to the dashboard.
-    res.redirect('/admin/dashboard');
-  }
-);
 
 
 
 
-app.use(cookieParser());
+
+
+
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
 app.use(session({
@@ -152,7 +215,7 @@ app.use(session({
 
 
 // 3. Set up Middleware
-app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(express.json());
 
 // Set current date in dd-mm-yyyy format
@@ -163,28 +226,73 @@ app.use(express.json());
     const yyyy = now.getFullYear();
     const new_column = `${dd}_${mm}_${yyyy}`;
 
+
 app.get('/', async (req, res) => {
-  if (req.cookies && req.cookies.remember_me_token) {
-    const sql = `SELECT * FROM auth_tokens WHERE selector = ?`;
-    const selector = req.cookies.remember_me_token.split(':')[0];
-    const [rows] = await dbPool.execute(sql, [selector]);
-    if (rows.length === 0) {
-      return res.status(401).send('Invalid remember me token.');
-    }
-    const dbHashedValidator = rows[0].hashed_validator;
-    const validator = req.cookies.remember_me_token.split(':')[1];
-    const match = await bcrypt.compare(validator, dbHashedValidator);
-    if (match) {
-        req.session.email = rows[0].user_id;
-        const sql = `SELECT * FROM users WHERE Email = ?`;
-        const [rows2] = await dbPool.execute(sql, [rows[0].user_id]);
-        req.session.name = rows2[0].Name;
-        req.session.user=1;
-      return res.redirect('/admin/dashboard');
-    }
+  // Check if the 'remember_me_token' cookie exists
+  if (!req.cookies || !req.cookies.remember_me_token) {
+    // If no cookie, just show the main page.
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+
+  try {
+    const [selector, validator] = req.cookies.remember_me_token.split(':');
+
+    if (!selector || !validator) {
+      // Malformed cookie, clear it and show the main page
+      res.clearCookie('remember_me_token');
+      return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }
+
+    // 1. Find the token selector in the database
+    const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
+
+    if (tokenRows.length === 0) {
+      console.log('DEBUG: Remember-me selector not found in DB.');
+      return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }
+
+    const authToken = tokenRows[0];
+
+    // 2. Check if the token has expired (CRITICAL SECURITY FIX)
+    if (new Date(authToken.expires) < new Date()) {
+      console.log('DEBUG: Remember-me token has expired.');
+      // Clean up expired token from the database
+      await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+      return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }
+
+    // 3. Compare the cookie's validator with the hashed validator in the DB
+    const dbHashedValidator = authToken.hashed_validator;
+    const match = await bcrypt.compare(validator, dbHashedValidator);
+
+    // Add this log to see the result of the comparison
+    console.log(`DEBUG: bcrypt.compare result: ${match}`); 
+
+    if (match) {
+      // SUCCESS: Token is valid. Log the user in.
+      const [userRows] = await dbPool.execute('SELECT * FROM users WHERE Email = ?', [authToken.email]);
+      
+      if (userRows.length > 0) {
+          const user = userRows[0];
+          // Assuming you are using express-session
+          req.session.email = user.Email;
+          req.session.name = user.Name;
+          req.session.user = user.id; // Store user ID for consistency
+          
+          console.log(`DEBUG: User ${user.Email} authenticated via token. Redirecting...`);
+          return res.redirect('/student');
+      }
+    }
+    
+    // If match is false, or user not found, fall through and show the main page.
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+
+  } catch (err) {
+    console.error("Error during 'remember me' authentication:", err);
+    res.status(500).send("Internal Server Error");
+  }
 });
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/logout', (req, res) => {
     req.session.destroy(err => {
@@ -200,10 +308,11 @@ app.get('/api/logout', (req, res) => {
 
 
 app.get('/admin/dashboard', (req, res) => {
+  
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-app.get('/index', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('/student', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
 // API ROUTE FOR ATTENDANCE
