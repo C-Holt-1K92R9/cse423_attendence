@@ -163,7 +163,7 @@ app.use(express.json());
     const yyyy = now.getFullYear();
     const new_column = `${dd}_${mm}_${yyyy}`;
 
-app.get('/login', async (req, res) => {
+app.get('/', async (req, res) => {
   if (req.cookies && req.cookies.remember_me_token) {
     const sql = `SELECT * FROM auth_tokens WHERE selector = ?`;
     const selector = req.cookies.remember_me_token.split(':')[0];
@@ -193,20 +193,16 @@ app.get('/api/logout', (req, res) => {
         } else {
             // Also clear any "remember me" cookie if you use one
             res.clearCookie('remember_me_token', { path: '/', httpOnly: true, secure: true });
-            res.redirect('/login');
+            res.redirect('/');
         }
     });
 });
 
 
 app.get('/admin/dashboard', (req, res) => {
-  
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-// 4. Define Routes
-// This route serves the main page.
-const token = "";
-app.get('/', (req, res) => {
+app.get('/index', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
