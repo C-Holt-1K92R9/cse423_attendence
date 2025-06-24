@@ -183,7 +183,7 @@ app.get('/auth/google/callback',
 );
 
 // The IP address you want to allow
-const ALLOWED_IP = '192.168.0.115'; // e.g., '203.0.113.42'
+const ALLOWED_IP = '103.55.146.25'; // e.g., '203.0.113.42'
 
 
 const ipWhitelistMiddleware = (req, res, next) => {

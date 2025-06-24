@@ -90,7 +90,17 @@
                 "Hey there",
                 "Good to see you",
                 "Welcome back",
-                "Howdy"
+                "Howdy",
+                "You made it!",
+                "Ready to learn?",
+                "Attendance superstar!",
+                "Look who's here!",
+                "Rockstar in the house!",
+                "Let's make today awesome!",
+                "High five for showing up!",
+                "You brighten the classroom!",
+                "Keep up the great work!",
+                "Let's crush this day!"
             ];
             // Pick a random greeting
             const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
@@ -156,11 +166,7 @@
 
     <!-- This script handles sending the form data to your Node.js server -->
     <script>
-        const facultyLoginButton = document.getElementById('facultyLoginButton');
-        facultyLoginButton.addEventListener('click', () => {
-            // Redirect to the faculty login page when the button is clicked
-            window.location.href = '/';
-        });
+        
         // Get references to the HTML elements we'll be working with.
         const form = document.getElementById('attendanceForm');
         const studentIdInput = document.getElementById('studentId');
