@@ -183,7 +183,7 @@ app.get('/auth/google/callback',
 );
 
 // The IP address you want to allow
-const ALLOWED_IP = '103.55.146.25'; // e.g., '203.0.113.42'
+const ALLOWED_IP = '103.73.227.130'; // e.g., '203.0.113.42'
 
 
 const ipWhitelistMiddleware = (req, res, next) => {
@@ -563,6 +563,17 @@ app.post('/api/login', async (req, res) => {
   }
 
   });
+
+app.post('/api/attendance/stop', async (req, res) => {
+
+      const randomString = null;
+      const trial = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
+      const [rows] = await dbPool.execute(trial);
+      const sql = "INSERT INTO verification (token, date) VALUES (?, ?)";
+      await dbPool.execute(sql, [randomString, new_column]);
+
+});
+
   app.post('/api/attendance/start', async (req, res) => {
     
     try {
@@ -574,8 +585,25 @@ app.post('/api/login', async (req, res) => {
       await dbPool.execute(sql, [randomString, new_column]);
 
       // Add a new column to the records table with the name from the variable "new_column"
-      const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
-      dbPool.execute(alterSql).catch(() => {});
+      // Check if the column already exists
+      
+      // 1. SQL to check if the column already exists in the 'records' table
+        const checkColumnSql = `
+          SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'records' AND COLUMN_NAME = ?
+        `;
+
+        // 2. Execute the check. 'process.env.DB_DATABASE' gets your database name from your .env file
+        const [columns] = await dbPool.execute(checkColumnSql, [process.env.DB_DATABASE, new_column]);
+
+        // 3. If the query returns 0 rows, the column does not exist, so we add it.
+        if (columns.length === 0) {
+          console.log(`Column ${new_column} does not exist. Adding it...`);
+          const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
+          await dbPool.execute(alterSql);
+        } else {
+          console.log(`Column ${new_column} already exists. Skipping.`);
+        }
       // Append it as a query parameter to the URL
       const url = `https://attain423.vercel.app?token=${randomString}`;
 

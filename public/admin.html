@@ -396,9 +396,15 @@
     </main>
 </body>
 <script>
-    document.getElementById('qr-close-btn').addEventListener('click', function() {
+    document.getElementById('qr-close-btn').addEventListener('click', async function() {
     document.getElementById('qr-overlay').classList.remove('show');
     document.getElementById('qr-code-container').innerHTML = '';
+    await fetch('/api/attendance/stop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+        });
 });
      document.querySelector('.card-action-attendance form').addEventListener('submit', async function(e) {
         e.preventDefault();
