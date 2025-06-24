@@ -234,6 +234,15 @@ const new_column = `${dd}_${mm}_${yyyy}`;
 
 
 app.get('/', async (req, res) => {
+  const token = req.params.token;
+  // If a token is provided as a query parameter, set it as a cookie (for QR code attendance flow)
+  if (req.query && req.query.token) {
+    res.cookie('token', req.query.token, {
+      httpOnly: false, // Can be accessed by client-side JS if needed
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 60 * 1000 // 30 minutes
+    });
+  }
   // Check if the 'remember_me_token' cookie exists
   if (!req.cookies || !req.cookies.remember_me_token) {
     // If no cookie, just show the main page.
@@ -605,7 +614,7 @@ app.post('/api/attendance/stop', async (req, res) => {
           console.log(`Column ${new_column} already exists. Skipping.`);
         }
       // Append it as a query parameter to the URL
-      const url = `https://attain423.vercel.app?token=${randomString}`;
+      const url = `http://192.168.0.102:3000?token=${randomString}`;
 
       // Generate QR code as a Data URL string
       const qrCodeDataURL = await QRCode.toDataURL(url);
@@ -657,7 +666,58 @@ app.post('/api/submit_id', async(req,res)=>{
 
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Catch-all for undefined routes (404 handler)
+app.use((req, res) => {
+  res.status(404).send(`
+    <html>
+      <head>
+        <title>404 Not Found</title>
+        <style>
+          body {
+            background: #f9f6fd;
+            color: #444;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            text-align: center;
+            padding: 60px;
+          }
+          .emoji {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: bounce 1.2s infinite;
+          }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0);}
+            50% { transform: translateY(-20px);}
+          }
+          .title {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #7c3aed;
+          }
+          .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+          }
+          a {
+            color: #7c3aed;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s;
+          }
+          a:hover {
+            color: #4f46e5;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="emoji">🐾</div>
+        <div class="title">404 - Page Not Found</div>
+        <div class="subtitle">Oops! Looks like you took a wrong turn.<br>
+        Let's get you back <a href="/">home</a>!</div>
+      </body>
+    </html>
+  `);
+});
 
 module.exports = app;
 

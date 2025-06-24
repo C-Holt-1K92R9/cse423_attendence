@@ -178,10 +178,20 @@
             // 1. Prevent the form from doing its default behavior (reloading the page).
             event.preventDefault();
             // Get the query parameters from the current URL
-            const urlParams = new URLSearchParams(window.location.search);
-
-            // Get the value of the 'token' parameter, or default to an empty string if it's not there.
-            const token = urlParams.get('token') || '';
+            // Get the value of the 'token' cookie, or default to an empty string if it's not there.
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) {
+                        return decodeURIComponent(c.substring(nameEQ.length, c.length));
+                    }
+                }
+                return '';
+            }
+            const token = getCookie('token') || '';
             // 2. Get the value from the input field.
             const studentId = studentIdInput.value;
 
