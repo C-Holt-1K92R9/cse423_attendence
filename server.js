@@ -134,7 +134,7 @@ app.get('/auth/google',
 
 // The callback route that Google redirects to after the user approves the login
 app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/login' }), // If login fails, redirect to /login
+  passport.authenticate('google', { failureRedirect: '/' }), // If login fails, redirect to /login
   async(req, res) => {
     // Successful authentication, redirect to the dashboard.
            const selector = crypto.randomBytes(16).toString('hex');
