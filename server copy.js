@@ -49,6 +49,25 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
+    try {
+        const [rows] = await dbPool.execute('SELECT * FROM users WHERE Email = ?', [email]);
+        if (rows.length === 0) {
+            return done(null, false, { message: 'Invalid email or password.' });
+        }
+        const user = rows[0];
+        // Securely compare the submitted password with the hashed one from the DB
+        const match = await bcrypt.compare(password, user.Password);
+        if (match) {
+            return done(null, user); // Success! Return the user object.
+        } else {
+            return done(null, false, { message: 'Invalid email or password.' });
+        }
+    } catch (error) {
+        return done(error);
+    }
+}));
+
 // 3. Configure the Google Strategy for Passport
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -219,6 +238,24 @@ const ipWhitelistMiddleware = (req, res, next) => {
 
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
+app.use(session({
+    // This 'secret' is used to sign the session ID cookie.
+    // It should be a long, random string stored in your .env file for security.
+    secret: process.env.SESSION_SECRET || 'a-default-secret-for-development',
+
+    // These two options are recommended for best practices.
+    resave: false,
+    saveUninitialized: false,
+
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (HTTPS)
+        maxAge: 24 * 60 * 60 * 1000 // Cookie expires in 24 hours
+    }
+}));
+// --- DATABASE CONNECTION SETUP FROM ENVIRONMENT VARIABLES ---
+// Securely reads connection details from process.env (from .env locally, or Vercel settings when deployed)
+
+
 
 // 3. Set up Middleware
 
@@ -226,11 +263,11 @@ app.use(express.json());
 
 // Set current date in dd-mm-yyyy format
 
-const now = new Date();
-const dd = String(now.getDate()).padStart(2, '0');
-const mm = String(now.getMonth() + 1).padStart(2, '0');
-const yyyy = now.getFullYear();
-const new_column = `${dd}_${mm}_${yyyy}`;
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const new_column = `${dd}_${mm}_${yyyy}`;
 
 
 app.get('/', async (req, res) => {
@@ -450,6 +487,7 @@ app.get('/student', async(req, res) => {
 // API ROUTE FOR ATTENDANCE
 app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
     const { studentId, token } = req.body;
+    console.log(`Received request to attend with studentId: ${studentId} and token: ${token}`);
     const sql = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
     const [rows] = await dbPool.execute(sql);
     // Check if token exists and matches the latest generated token (crypto-generated)

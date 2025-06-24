@@ -79,23 +79,54 @@
             // Get the 'name' cookie and update the welcome header if present
             const studentName = getCookie('name');
             if (studentName) {
-            document.getElementById('welcomeHeader').textContent = `Welcome, ${studentName}!`;
+            // Array of random greetings
+            const greetings = [
+                "Welcome",
+                "Hello",
+                "Hi",
+                "Greetings",
+                "Glad to see you",
+                "Nice to have you",
+                "Hey there",
+                "Good to see you",
+                "Welcome back",
+                "Howdy"
+            ];
+            // Pick a random greeting
+            const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+            document.getElementById('welcomeHeader').textContent = `${randomGreeting}, ${studentName}!`;
             }
         </script>
-        <p class="text-center text-gray-500 mb-6">Please enter your Student ID to mark your attendance.</p>
+        <p class="text-center text-gray-500 mb-6">Kindly submit your attendance before your faculty closes the QR code. Thank you!</p>
         
         <form id="attendanceForm">
-            <div class="mb-4">
-                <label for="studentId" class="block text-gray-700 text-sm font-bold mb-2">Student ID</label>
-                <input 
-                    type="text" 
-                    id="studentId" 
-                    name="studentId"
-                    placeholder="e.g., 1012023"
-                    class="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                >
-            </div>
+            <input 
+                type="hidden" 
+                id="studentId" 
+                name="studentId"
+                required
+            >
+            <script>
+                // Set the hidden input value from the 'student_id' cookie
+                document.addEventListener('DOMContentLoaded', function() {
+                    function getCookie(name) {
+                        const nameEQ = name + "=";
+                        const ca = document.cookie.split(';');
+                        for(let i = 0; i < ca.length; i++) {
+                            let c = ca[i];
+                            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                            if (c.indexOf(nameEQ) === 0) {
+                                return decodeURIComponent(c.substring(nameEQ.length, c.length));
+                            }
+                        }
+                        return null;
+                    }
+                    const studentId = getCookie('student_id');
+                    if (studentId) {
+                        document.getElementById('studentId').value = studentId;
+                    }
+                });
+            </script>
             
             <div class="flex items-center justify-center">
                 <button 
@@ -103,7 +134,18 @@
                     id="submitButton"
                     class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition-colors duration-200"
                 >
-                    Submit Attendance
+                    Submit Attendance for
+                    <span class="block text-xs font-semibold text-white mt-1" id="currentDate"></span>
+                    <script>
+                        // Display the current date in a readable format
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const dateSpan = document.getElementById('currentDate');
+                            const now = new Date();
+                            // Format: Month Day, Year (e.g., June 7, 2024)
+                            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+                            dateSpan.textContent = now.toLocaleDateString(undefined, options);
+                        });
+                    </script>
                 </button>
             </div>
         </form>
