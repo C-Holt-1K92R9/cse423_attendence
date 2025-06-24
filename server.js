@@ -614,7 +614,7 @@ app.post('/api/attendance/stop', async (req, res) => {
           console.log(`Column ${new_column} already exists. Skipping.`);
         }
       // Append it as a query parameter to the URL
-      const url = `http://192.168.0.102:3000?token=${randomString}`;
+      const url = `https://attain423.vercel.app/?token=${randomString}`;
 
       // Generate QR code as a Data URL string
       const qrCodeDataURL = await QRCode.toDataURL(url);
