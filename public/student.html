@@ -33,7 +33,55 @@
         </script>
     </div>
     <div class="w-full max-w-md bg-white rounded-lg shadow-md p-8">
-        <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">Welcome!</h1>
+        <div class="flex flex-col items-center mb-2">
+            <img id="profilePhoto" src="" alt="Profile Photo" class="w-20 h-20 rounded-full mb-2 border-2 border-gray-300 object-cover" referrerpolicy="no-referrer">
+    
+    <script>
+        // This script should run after the profilePhoto element has loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // 2. Use a more robust function to get and decode the cookie
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) === 0) {
+                        // This decodes the URL, fixing issues with special characters
+                        return decodeURIComponent(c.substring(nameEQ.length, c.length));
+                    }
+                }
+                return null;
+            }
+
+            const photoUrl = getCookie('photo_url');
+            const imgElement = document.getElementById('profilePhoto');
+
+            if (photoUrl) {
+                // Set the src attribute with the correctly decoded URL
+                imgElement.src = photoUrl;
+            } else {
+                // Optional: set a default placeholder image if the cookie isn't found
+                imgElement.src = 'https://placehold.co/80x80/EFEFEF/333333?text=User';
+            }
+        });
+    </script>
+            <h1 id="welcomeHeader" class="text-2xl font-bold text-center text-gray-800">Welcome!</h1>
+        </div>
+        <script>
+            // Function to get a cookie value by name
+            function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            }
+            // Get the 'name' cookie and update the welcome header if present
+            const studentName = getCookie('name');
+            if (studentName) {
+            document.getElementById('welcomeHeader').textContent = `Welcome, ${studentName}!`;
+            }
+        </script>
         <p class="text-center text-gray-500 mb-6">Please enter your Student ID to mark your attendance.</p>
         
         <form id="attendanceForm">

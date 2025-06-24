@@ -61,7 +61,6 @@ passport.use(new GoogleStrategy({
     // 'profile' contains the user's info (name, email, Google ID, etc.).
     const { id: googleId, displayName: name } = profile;
     const email = profile.emails && profile.emails.length > 0 ? profile.emails[0].value : null;
-
     if (!email) {
       return done(new Error("No email found in Google profile"), null);
     }
@@ -78,8 +77,8 @@ passport.use(new GoogleStrategy({
       if (!user) {
         // Insert new user if they don't exist
         const [insertResult] = await dbPool.execute(
-          'INSERT INTO users (Name, Email, google_id) VALUES (?, ?, ?)',
-          [name, email, googleId]
+          'INSERT INTO users (Name, Email, google_id, Photo_url) VALUES (?, ?, ?, ?)',
+          [name, email, googleId, profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null]
         );
         // We need the newly created user object, including the ID.
         [rows] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [insertResult.insertId]);
@@ -138,13 +137,38 @@ app.get('/auth/google/callback',
       const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       // 3. Store in the database, linked to the user's email or ID
-      const sql = "INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)";
-      await dbPool.execute(sql, [selector, hashedValidator, user.Email, expires]);
+      // Check if a token already exists for this email
+      const [existingTokens] = await dbPool.execute(
+        "SELECT * FROM auth_tokens WHERE email = ?",
+        [user.Email]
+      );
+      if (existingTokens.length > 0) {
+        // Update the existing token
+        const sql = "UPDATE auth_tokens SET selector = ?, hashed_validator = ?, expires = ? WHERE email = ?";
+        await dbPool.execute(sql, [selector, hashedValidator, expires, user.Email]);
+      } else {
+        // Insert a new token
+        const sql = "INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)";
+        await dbPool.execute(sql, [selector, hashedValidator, user.Email, expires]);
+      }
 
       // 4. Create and set the cookie on the response object
+      // Set a cookie for the user's profile picture URL
+      res.cookie('photo_url', user.Photo_url || '', {
+          httpOnly: false, // Can be accessed by client-side JS if needed
+          secure: process.env.NODE_ENV === 'production',
+          expires: expires
+      });
       res.cookie('remember_me_token', `${selector}:${validator}`, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+          expires: expires
+      });
+      // Set a separate cookie for the user's first name
+      const firstName = user.Name ? user.Name.split(' ')[0] : '';
+      res.cookie('name', firstName, {
+          httpOnly: false, // Can be accessed by client-side JS if needed
+          secure: process.env.NODE_ENV === 'production',
           expires: expires
       });
 
@@ -292,33 +316,158 @@ app.get('/', async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/api/logout', (req, res) => {
-    req.session.destroy(err => {
+
+app.get('/api/logout', async (req, res) => {
+    req.session.destroy(async err => {
         if (err) {
             return res.status(500).send('Could not log out.');
         } else {
             // Also clear any "remember me" cookie if you use one
+            // Clear all relevant cookies
             res.clearCookie('remember_me_token', { path: '/', httpOnly: true, secure: true });
+            res.clearCookie('name', { path: '/' });
+            res.clearCookie('attended', { path: '/' });
+
+            // Remove the auth_token from the database if present
+            if (req.cookies && req.cookies.remember_me_token) {
+              const [selector] = req.cookies.remember_me_token.split(':');
+              if (selector) {
+                try {
+                  await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+                } catch (err) {
+                  console.error('Error deleting auth_token during logout:', err);
+                }
+              }
+            }
+
             res.redirect('/');
         }
     });
 });
 
 
-app.get('/admin/dashboard', (req, res) => {
-  
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+app.get('/admin/dashboard', async (req, res) => {
+  // Check for remember_me_token cookie
+  if (!req.cookies || !req.cookies.remember_me_token) {
+    // No token, redirect to home
+    return res.redirect('/');
+  }
+
+  try {
+    const [selector, validator] = req.cookies.remember_me_token.split(':');
+    if (!selector || !validator) {
+      // Malformed cookie, clear all cookies and redirect
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    // Find token in DB
+    const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
+    if (tokenRows.length === 0) {
+      // Token not found, clear all cookies and redirect
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    const authToken = tokenRows[0];
+    // Check expiry
+    if (new Date(authToken.expires) < new Date()) {
+      await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    // Compare validator
+    const match = await bcrypt.compare(validator, authToken.hashed_validator);
+    if (!match) {
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    // All good, serve admin.html
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  } catch (err) {
+    res.clearCookie('remember_me_token');
+    res.clearCookie('name');
+    res.clearCookie('attended');
+    res.redirect('/');
+  }
 });
-app.get('/student', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'student.html'));
+app.get('/student', async(req, res) => {
+  // Check for remember_me_token cookie
+  if (!req.cookies || !req.cookies.remember_me_token) {
+    // No token, redirect to home
+    res.redirect('/');
+    return;
+  }
+
+  try {
+    const [selector, validator] = req.cookies.remember_me_token.split(':');
+    if (!selector || !validator) {
+      // Malformed cookie, clear all cookies and redirect
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    // Find token in DB
+    const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
+    if (tokenRows.length === 0) {
+      // Token not found, clear all cookies and redirect
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    const authToken = tokenRows[0];
+    // Check expiry
+    if (new Date(authToken.expires) < new Date()) {
+      await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    // Compare validator
+    const match = await bcrypt.compare(validator, authToken.hashed_validator);
+    if (!match) {
+      res.clearCookie('remember_me_token');
+      res.clearCookie('name');
+      res.clearCookie('attended');
+      return res.redirect('/');
+    }
+
+    // All good, serve student.html
+    const sql=`SELECT * FROM users WHERE Email = ?`;
+    const [rows] = await dbPool.execute(sql, [authToken.email]);
+    if (!rows[0] || rows[0].StudentID == null) {
+      // If the student ID is not set, show the ID submission page
+      return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
+    }
+    res.sendFile(path.join(__dirname, 'public', 'student.html'));
+  } catch (err) {
+    res.clearCookie('remember_me_token');
+    res.clearCookie('name');
+    res.clearCookie('attended');
+    res.redirect('/');
+  }
 });
 
 // API ROUTE FOR ATTENDANCE
 app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
     const { studentId, token } = req.body;
-    
     const sql = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
     const [rows] = await dbPool.execute(sql);
     // Check if token exists and matches the latest generated token (crypto-generated)
@@ -446,7 +595,7 @@ app.post('/api/login', async (req, res) => {
       const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
       dbPool.execute(alterSql).catch(() => {});
       // Append it as a query parameter to the URL
-      const url = `http://192.168.0.112:3000?token=${randomString}`;
+      const url = `https://attain423.vercel.app?token=${randomString}`;
 
       // Generate QR code as a Data URL string
       const qrCodeDataURL = await QRCode.toDataURL(url);
@@ -459,7 +608,39 @@ app.post('/api/login', async (req, res) => {
     res.status(500).send('Error generating QR code.');
   }
   });
+app.post('/api/submit_id', async(req,res)=>{
+  const { studentId, token } = req.body;
 
+  // Get the selector and validator from the remember_me_token cookie
+  if (!req.cookies || !req.cookies.remember_me_token) {
+    return res.status(401).json({ success: false, message: 'Not authenticated.' });
+  }
+  const [selector, validator] = req.cookies.remember_me_token.split(':');
+  if (!selector || !validator) {
+    return res.status(401).json({ success: false, message: 'Invalid token.' });
+  }
+  // Find token in DB
+  const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
+  if (tokenRows.length === 0) {
+    return res.status(401).json({ success: false, message: 'Token not found.' });
+  }
+  const authToken = tokenRows[0];
+  // Compare validator
+  const match = await bcrypt.compare(validator, authToken.hashed_validator);
+  if (!match) {
+    return res.status(401).json({ success: false, message: 'Token mismatch.' });
+  }
+  // Use the email from the token
+  const email = authToken.email;
+  // Update the user's StudentID where the email matches
+  const updateSql = `UPDATE users SET StudentID = ? WHERE Email = ?`;
+  await dbPool.execute(updateSql, [studentId, email]);
+
+  return res.status(200).json({ success: true, message: 'Token not found.' });; // Redirect to the student page with the studentId as a query parameter
+
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 module.exports = app;
 
