@@ -484,10 +484,9 @@ app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
 
     try {
   
-        const sql = `UPDATE records SET ${new_column} = ? WHERE ID = ?`;
-        const attendanceStatus = 1;
-        
-        await dbPool.execute(sql, [attendanceStatus, studentId]);
+        // Update the attendance for the student in the records table
+        const updateSql = `UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`;
+        await dbPool.execute(updateSql, [1, studentId]);
         
         // Set a cookie named "attendance" with value 1, expires in 1.5 days (36 hours)
         res.cookie('attended', 1, {

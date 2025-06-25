@@ -142,7 +142,6 @@
         
         // Get references to the HTML elements we'll be working with.
         const form = document.getElementById('attendanceForm');
-        const studentIdInput = document.getElementById('studentId');
         const messageArea = document.getElementById('messageArea');
         const submitButton = document.getElementById('submitButton');
 
@@ -165,6 +164,7 @@
                 return '';
             }
            const token = getCookie('token') || '';
+           const studentId = getCookie('student_id');
             if (!token) {
                 submitButton.disabled = true;
                 submitButton.classList.add('bg-gray-400', 'cursor-not-allowed');
@@ -175,7 +175,7 @@
             }
             // 2. Get the value from the input field.
             // Try to get studentId from cookie, then from URL query parameter as fallback
-            const studentId = getCookie('student_id');
+            
             confirmation = confirm("Are you sure you want to submit your attendance for "+studentId+" ?");
 
             // 3. Disable the button to prevent multiple submissions while waiting for a response.
@@ -190,7 +190,7 @@
                     headers: {
                         'Content-Type': 'application/json' // Tell the server we're sending JSON
                     },
-                    body: JSON.stringify({ studentId: studentId, token: token }) // Convert our data to a JSON string
+                    body: JSON.stringify({ studentId, token }) // Convert our data to a JSON string
                 });
 
                 // 5. Get the JSON response from the server.
