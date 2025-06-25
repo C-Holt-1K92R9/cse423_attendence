@@ -82,9 +82,11 @@ passport.use(new GoogleStrategy({
 
       if (!user) {
         console.log("User not found, creating new user");
-        let type=1;
-        if (email.split('@')[1] !== "bracu.ac.bd"){
+        let type=0;
+        let studentId = null;
+        if (email.split('@')[1] === "g.bracu.ac.bd"){
           type=0;
+          studentId = 0;
         }
           
         
