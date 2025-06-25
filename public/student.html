@@ -117,10 +117,6 @@
                 return;
             }
 
-            if (!confirm(`Are you sure you want to submit your attendance for ${studentId} ?`)) {
-                return;
-            }
-
             submitButton.disabled = true;
             submitButton.textContent = 'Submitting...';
             messageArea.textContent = '';
