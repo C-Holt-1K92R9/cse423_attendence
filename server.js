@@ -68,7 +68,7 @@ passport.use(new GoogleStrategy({
     const domain = email.split('@')[1];
 
     if (!authorizedDomains.includes(domain)) {
-      return done(new Error("Domain is not authorized"), null);
+      return done(null, false, { message: "Domain is not authorized" });
     }
 
     try {
@@ -81,13 +81,14 @@ passport.use(new GoogleStrategy({
       let user = rows[0];
 
       if (!user) {
-        // Insert new user if they don't exist
+        console.log("User not found, creating new user");
+        let type=1;
         if (email.split('@')[1] !== "bracu.ac.bd"){
           type=0;
         }
-        else{
-          type=1;
-        }
+          
+        
+        console.log("Inserting new user type:", type);
         const [insertResult] = await dbPool.execute(
           'INSERT INTO users (Name, Email, type, google_id, Photo_url) VALUES (?, ?, ?, ?, ?)',
           [name, email, type, googleId, profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null]
