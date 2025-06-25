@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        html, body { overflow: hidden; }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
@@ -36,77 +37,8 @@
         <div class="flex flex-col items-center mb-2">
             <img id="profilePhoto" src="" alt="Profile Photo" class="w-20 h-20 rounded-full mb-2 border-2 border-gray-300 object-cover" referrerpolicy="no-referrer">
     
-    <script>
-        // This script should run after the profilePhoto element has loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            
-            // 2. Use a more robust function to get and decode the cookie
-            function getCookie(name) {
-                const nameEQ = name + "=";
-                const ca = document.cookie.split(';');
-                for(let i = 0; i < ca.length; i++) {
-                    let c = ca[i];
-                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                    if (c.indexOf(nameEQ) === 0) {
-                        // This decodes the URL, fixing issues with special characters
-                        return decodeURIComponent(c.substring(nameEQ.length, c.length));
-                    }
-                }
-                return null;
-            }
-
-            const photoUrl = getCookie('photo_url');
-            const imgElement = document.getElementById('profilePhoto');
-
-            if (photoUrl) {
-                // Set the src attribute with the correctly decoded URL
-                imgElement.src = photoUrl;
-            } else {
-                // Optional: set a default placeholder image if the cookie isn't found
-                imgElement.src = 'https://placehold.co/80x80/EFEFEF/333333?text=User';
-            }
-        });
-    </script>
             <h1 id="welcomeHeader" class="text-2xl font-bold text-center text-gray-800">Welcome!</h1>
         </div>
-        <script>
-            // Function to get a cookie value by name
-            function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-            }
-            // Get the 'name' cookie and update the welcome header if present
-            const studentName = getCookie('name');
-            if (studentName) {
-            // Array of random greetings
-            const greetings = [
-                "Welcome",
-                "Hello",
-                "Hi",
-                "Greetings",
-                "Glad to see you",
-                "Nice to have you",
-                "Hey there",
-                "Good to see you",
-                "Welcome back",
-                "Howdy",
-                "You made it!",
-                "Ready to learn?",
-                "Attendance superstar!",
-                "Look who's here!",
-                "Rockstar in the house!",
-                "Let's make today awesome!",
-                "High five for showing up!",
-                "You brighten the classroom!",
-                "Keep up the great work!",
-                "Let's crush this day!"
-            ];
-            // Pick a random greeting
-            const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-            document.getElementById('welcomeHeader').textContent = `${randomGreeting}, ${studentName}!`;
-            }
-        </script>
         <p class="text-center text-gray-500 mb-6">Kindly submit your attendance before your faculty closes the QR code. Thank you!</p>
         
         <form id="attendanceForm">   
@@ -162,6 +94,52 @@
                     }
                 }
                 return '';
+            }
+             // Function to get a cookie value by name
+            function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            }
+            // Get the 'name' cookie and update the welcome header if present
+            const studentName = getCookie('name');
+            if (studentName) {
+            // Array of random greetings
+            const greetings = [
+                "Welcome",
+                "Hello",
+                "Hi",
+                "Greetings",
+                "Glad to see you",
+                "Nice to have you",
+                "Hey there",
+                "Good to see you",
+                "Welcome back",
+                "Howdy",
+                "You made it!",
+                "Ready to learn?",
+                "Attendance superstar!",
+                "Look who's here!",
+                "Rockstar in the house!",
+                "Let's make today awesome!",
+                "High five for showing up!",
+                "You brighten the classroom!",
+                "Keep up the great work!",
+                "Let's crush this day!"
+            ];
+            // Pick a random greeting
+            const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+            document.getElementById('welcomeHeader').textContent = `${randomGreeting}, ${studentName}!`;
+            }
+            const photoUrl = getCookie('photo_url');
+            const imgElement = document.getElementById('profilePhoto');
+
+            if (photoUrl) {
+                // Set the src attribute with the correctly decoded URL
+                imgElement.src = photoUrl;
+            } else {
+                // Optional: set a default placeholder image if the cookie isn't found
+                imgElement.src = 'https://placehold.co/80x80/EFEFEF/333333?text=User';
             }
            const token = getCookie('token') || '';
            const studentId = getCookie('student_id');
