@@ -64,6 +64,9 @@ passport.use(new GoogleStrategy({
     if (!email) {
       return done(new Error("No email found in Google profile"), null);
     }
+    if (email.split('@')[1] !== "g.bracu.ac.bd" || email.split('@')[1] !== "bracu.ac.bd" ) {
+      return done(new Error("Domain is not authorized"), null);
+    }
 
     try {
       // Check if user already exists
@@ -76,9 +79,15 @@ passport.use(new GoogleStrategy({
 
       if (!user) {
         // Insert new user if they don't exist
+        if (email.split('@')[1] !== "bracu.ac.bd"){
+          type=0;
+        }
+        else{
+          type=1;
+        }
         const [insertResult] = await dbPool.execute(
-          'INSERT INTO users (Name, Email, google_id, Photo_url) VALUES (?, ?, ?, ?)',
-          [name, email, googleId, profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null]
+          'INSERT INTO users (Name, Email, type, google_id, Photo_url) VALUES (?, ?, ?, ?, ?)',
+          [name, email, type, googleId, profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null]
         );
         // We need the newly created user object, including the ID.
         [rows] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [insertResult.insertId]);
@@ -295,7 +304,9 @@ app.get('/', async (req, res) => {
           req.session.user = user.id; // Store user ID for consistency
           
           console.log(`DEBUG: User ${user.Email} authenticated via token. Redirecting...`);
-          return res.redirect('/student');
+          if(userRows[0].type==0){
+          return res.redirect('/student');}
+          return res.redirect('/admin/dashboard')
       }
     }
     
