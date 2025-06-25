@@ -175,6 +175,7 @@
             }
             // 2. Get the value from the input field.
             const studentId = getCookie('student_id');
+            confirmation = confirm("Are you sure you want to submit your attendance for "+studentId+" ?");
 
             // 3. Disable the button to prevent multiple submissions while waiting for a response.
             submitButton.disabled = true;

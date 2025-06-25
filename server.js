@@ -459,6 +459,7 @@ app.get('/student', async(req, res) => {
 // API ROUTE FOR ATTENDANCE
 app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
     const { studentId, token } = req.body;
+    console.log(`Received request to attend with studentId: ${studentId} and token: ${token}`);
     const sql = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
     const [rows] = await dbPool.execute(sql);
     // Check if token exists and matches the latest generated token (crypto-generated)
