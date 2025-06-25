@@ -290,7 +290,7 @@ app.post('/api/attendance/start', async (req, res) => {
     `, [process.env.DB_DATABASE, new_column]);
     if (columns.length === 0) {
       console.log(`Adding new column: ${new_column}`);
-      await dbPool.execute(`ALTER TABLE records ADD COLUMN ${new_column}`);
+      await dbPool.execute(`ALTER TABLE records ADD COLUMN \`${new_column}\` TINYINT DEFAULT 0`);
     }
     const url = `https://attain423.vercel.app/?token=${randomString}`;
     const qrCodeDataURL = await QRCode.toDataURL(url);
