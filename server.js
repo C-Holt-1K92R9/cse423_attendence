@@ -82,14 +82,10 @@ passport.use(new GoogleStrategy({
 
       if (!user) {
         console.log("User not found, creating new user");
-        let type=0;
-        let studentId = null;
+        let type=1;
         if (email.split('@')[1] === "g.bracu.ac.bd"){
-          type=1
-          studentId = 0;
+          type=0
         }
-          
-        
         console.log("Inserting new user type:", type);
         const [insertResult] = await dbPool.execute(
           'INSERT INTO users (Name, Email, type, google_id, Photo_url) VALUES (?, ?, ?, ?, ?)',
@@ -134,7 +130,7 @@ app.get('/auth/google',
 app.get('/auth/google/callback', 
   // This middleware triggers the Passport authentication flow.
   passport.authenticate('google', { 
-    failureRedirect: '/', // Redirect if authentication fails
+    failureRedirect: '/??message=Domain is not Authorized!', // Redirect if authentication fails
     session: false // We are using a custom token, so we can disable sessions here if we want
   }),
   // This function executes only on successful authentication.
@@ -188,7 +184,7 @@ app.get('/auth/google/callback',
       });
 
       // 5. Redirect the user to the desired page
-      res.redirect('/');
+      res.redirect('/student');
 
     } catch(err) {
       console.error('Error creating remember_me token:', err);
@@ -311,8 +307,7 @@ app.get('/', async (req, res) => {
           
           console.log(`DEBUG: User ${user.Email} authenticated via token. Redirecting...`);
           if(userRows[0].type==0){
-          return res.redirect('/student');
-        }
+          return res.redirect('/student');}
           return res.redirect('/admin/dashboard')
       }
     }

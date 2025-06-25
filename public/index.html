@@ -49,6 +49,13 @@
     <script>
         // --- FIXED ---
         // The script block for the non-existent 'homeButton' has been removed.
+        const urlparam = new URLSearchParams(window.location.search);
+        const message = urlparam.get('message') || '';
+        if (message!=''){
+            const messageArea = document.getElementById('messageArea');
+            messageArea.textContent = message;
+            messageArea.className = 'mt-4 text-center font-medium text-red-600';
+        }
 
         const form = document.getElementById('loginForm');
         const messageArea = document.getElementById('messageArea');
