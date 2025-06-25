@@ -316,9 +316,13 @@ app.get('/api/logout', async (req, res) => {
         } else {
             // Also clear any "remember me" cookie if you use one
             // Clear all relevant cookies
-            res.clearCookie('remember_me_token', { path: '/', httpOnly: true, secure: true });
+            // Clear all possible cookies set by the app
+            res.clearCookie('remember_me_token', { path: '/' });
             res.clearCookie('name', { path: '/' });
             res.clearCookie('attended', { path: '/' });
+            res.clearCookie('photo_url', { path: '/' });
+            res.clearCookie('student_id', { path: '/' });
+            res.clearCookie('token', { path: '/' });
 
             // Remove the auth_token from the database if present
             if (req.cookies && req.cookies.remember_me_token) {
@@ -447,6 +451,11 @@ app.get('/student', async(req, res) => {
       // If the student ID is not set, show the ID submission page
       return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
     }
+    res.cookie('student_id', rows[0].StudentID, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
+    });
     res.sendFile(path.join(__dirname, 'public', 'student.html'));
   } catch (err) {
     res.clearCookie('remember_me_token');
@@ -630,13 +639,7 @@ app.post('/api/attendance/stop', async (req, res) => {
   });
 app.post('/api/submit_id', async(req,res)=>{
   const { studentId, token } = req.body;
-  // Set a cookie for studentId, expires in 30 days
-  res.cookie('student_id', studentId, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
-  });
-
+  // Set a cookie for studentId, expires in 30 day
   // Get the selector and validator from the remember_me_token cookie
   if (!req.cookies || !req.cookies.remember_me_token) {
     return res.status(401).json({ success: false, message: 'Not authenticated.' });
@@ -663,7 +666,7 @@ app.post('/api/submit_id', async(req,res)=>{
   await dbPool.execute(updateSql, [studentId, email]);
 
 
-  return res.status(200).json({ success: true, message: 'Token not found.' });; // Redirect to the student page with the studentId as a query parameter
+  return res.status(200).json({ success: true, message: 'Syccessfully submited Student Id.' });; // Redirect to the student page with the studentId as a query parameter
 
 });
 

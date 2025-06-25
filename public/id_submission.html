@@ -94,7 +94,12 @@
                 const result = await response;
                 if (result.ok){
                     // Redirect to /student?token=... after successful submission
-                    window.location.href = `/student?token=${encodeURIComponent(token)}`;
+                    messageArea.textContent = 'Student ID submitted successfully! Redirecting...';
+                    messageArea.classList.remove('text-red-500');
+                    messageArea.classList.add('text-green-600');
+                    setTimeout(() => {
+                        window.location.href = `/student?token=${encodeURIComponent(token)}`;
+                    }, 2000);
                 }
             }catch (error) {
                 // 5. If there's an error, show it in the message area.
