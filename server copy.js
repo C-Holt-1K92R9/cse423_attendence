@@ -49,25 +49,6 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
-    try {
-        const [rows] = await dbPool.execute('SELECT * FROM users WHERE Email = ?', [email]);
-        if (rows.length === 0) {
-            return done(null, false, { message: 'Invalid email or password.' });
-        }
-        const user = rows[0];
-        // Securely compare the submitted password with the hashed one from the DB
-        const match = await bcrypt.compare(password, user.Password);
-        if (match) {
-            return done(null, user); // Success! Return the user object.
-        } else {
-            return done(null, false, { message: 'Invalid email or password.' });
-        }
-    } catch (error) {
-        return done(error);
-    }
-}));
-
 // 3. Configure the Google Strategy for Passport
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -83,6 +64,12 @@ passport.use(new GoogleStrategy({
     if (!email) {
       return done(new Error("No email found in Google profile"), null);
     }
+    const authorizedDomains = ["g.bracu.ac.bd", "bracu.ac.bd"];
+    const domain = email.split('@')[1];
+
+    if (!authorizedDomains.includes(domain)) {
+      return done(null, false, { message: "Domain is not authorized" });
+    }
 
     try {
       // Check if user already exists
@@ -94,10 +81,15 @@ passport.use(new GoogleStrategy({
       let user = rows[0];
 
       if (!user) {
-        // Insert new user if they don't exist
+        console.log("User not found, creating new user");
+        let type=1;
+        if (email.split('@')[1] === "g.bracu.ac.bd"){
+          type=0
+        }
+        console.log("Inserting new user type:", type);
         const [insertResult] = await dbPool.execute(
-          'INSERT INTO users (Name, Email, google_id, Photo_url) VALUES (?, ?, ?, ?)',
-          [name, email, googleId, profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null]
+          'INSERT INTO users (Name, Email, type, google_id, Photo_url) VALUES (?, ?, ?, ?, ?)',
+          [name, email, type, googleId, profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null]
         );
         // We need the newly created user object, including the ID.
         [rows] = await dbPool.execute('SELECT * FROM users WHERE id = ?', [insertResult.insertId]);
@@ -138,7 +130,7 @@ app.get('/auth/google',
 app.get('/auth/google/callback', 
   // This middleware triggers the Passport authentication flow.
   passport.authenticate('google', { 
-    failureRedirect: '/login', // Redirect if authentication fails
+    failureRedirect: '/?message=Domain is not Authorized!', // Redirect if authentication fails
     session: false // We are using a custom token, so we can disable sessions here if we want
   }),
   // This function executes only on successful authentication.
@@ -192,17 +184,17 @@ app.get('/auth/google/callback',
       });
 
       // 5. Redirect the user to the desired page
-      res.redirect('/student');
+      res.redirect('/');
 
     } catch(err) {
       console.error('Error creating remember_me token:', err);
-      res.redirect('/login?error=auth_failed');
+      res.redirect('/?error=auth_failed');
     }
   }
 );
 
 // The IP address you want to allow
-const ALLOWED_IP = '192.168.0.115'; // e.g., '203.0.113.42'
+const ALLOWED_IP = process.env.ALLOWED_IP; // Set this in your .env file, e.g., ALLOWED_IP=103.73.227.130
 
 
 const ipWhitelistMiddleware = (req, res, next) => {
@@ -238,24 +230,6 @@ const ipWhitelistMiddleware = (req, res, next) => {
 
 // Vercel provides its own port, but we define one for local testing.
 const PORT = process.env.PORT || 3000;
-app.use(session({
-    // This 'secret' is used to sign the session ID cookie.
-    // It should be a long, random string stored in your .env file for security.
-    secret: process.env.SESSION_SECRET || 'a-default-secret-for-development',
-
-    // These two options are recommended for best practices.
-    resave: false,
-    saveUninitialized: false,
-
-    cookie: { 
-        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (HTTPS)
-        maxAge: 24 * 60 * 60 * 1000 // Cookie expires in 24 hours
-    }
-}));
-// --- DATABASE CONNECTION SETUP FROM ENVIRONMENT VARIABLES ---
-// Securely reads connection details from process.env (from .env locally, or Vercel settings when deployed)
-
-
 
 // 3. Set up Middleware
 
@@ -263,14 +237,23 @@ app.use(express.json());
 
 // Set current date in dd-mm-yyyy format
 
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    const new_column = `${dd}_${mm}_${yyyy}`;
+const now = new Date();
+const dd = String(now.getDate()).padStart(2, '0');
+const mm = String(now.getMonth() + 1).padStart(2, '0');
+const yyyy = now.getFullYear();
+const new_column = `${dd}_${mm}_${yyyy}`;
 
 
 app.get('/', async (req, res) => {
+  const token = req.params.token;
+  // If a token is provided as a query parameter, set it as a cookie (for QR code attendance flow)
+  if (req.query && req.query.token) {
+    res.cookie('token', req.query.token, {
+      httpOnly: false, // Can be accessed by client-side JS if needed
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 60 * 1000 // 30 minutes
+    });
+  }
   // Check if the 'remember_me_token' cookie exists
   if (!req.cookies || !req.cookies.remember_me_token) {
     // If no cookie, just show the main page.
@@ -323,7 +306,9 @@ app.get('/', async (req, res) => {
           req.session.user = user.id; // Store user ID for consistency
           
           console.log(`DEBUG: User ${user.Email} authenticated via token. Redirecting...`);
-          return res.redirect('/student');
+          if(userRows[0].type==0){
+          return res.redirect('/student');}
+          return res.redirect('/admin/dashboard')
       }
     }
     
@@ -344,9 +329,13 @@ app.get('/api/logout', async (req, res) => {
         } else {
             // Also clear any "remember me" cookie if you use one
             // Clear all relevant cookies
-            res.clearCookie('remember_me_token', { path: '/', httpOnly: true, secure: true });
+            // Clear all possible cookies set by the app
+            res.clearCookie('remember_me_token', { path: '/' });
             res.clearCookie('name', { path: '/' });
             res.clearCookie('attended', { path: '/' });
+            res.clearCookie('photo_url', { path: '/' });
+            res.clearCookie('student_id', { path: '/' });
+            res.clearCookie('token', { path: '/' });
 
             // Remove the auth_token from the database if present
             if (req.cookies && req.cookies.remember_me_token) {
@@ -475,6 +464,11 @@ app.get('/student', async(req, res) => {
       // If the student ID is not set, show the ID submission page
       return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
     }
+    res.cookie('student_id', rows[0].StudentID, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
+    });
     res.sendFile(path.join(__dirname, 'public', 'student.html'));
   } catch (err) {
     res.clearCookie('remember_me_token');
@@ -503,10 +497,9 @@ app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
 
     try {
   
-        const sql = `UPDATE records SET ${new_column} = ? WHERE ID = ?`;
-        const attendanceStatus = 1;
-        
-        await dbPool.execute(sql, [attendanceStatus, studentId]);
+        // Update the attendance for the student in the records table
+        const updateSql = `UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`;
+        await dbPool.execute(updateSql, [1, studentId]);
         
         // Set a cookie named "attendance" with value 1, expires in 1.5 days (36 hours)
         res.cookie('attended', 1, {
@@ -601,6 +594,17 @@ app.post('/api/login', async (req, res) => {
   }
 
   });
+
+app.post('/api/attendance/stop', async (req, res) => {
+
+      const randomString = null;
+      const trial = `SELECT * FROM verification ORDER BY ID DESC LIMIT 1`;
+      const [rows] = await dbPool.execute(trial);
+      const sql = "INSERT INTO verification (token, date) VALUES (?, ?)";
+      await dbPool.execute(sql, [randomString, new_column]);
+
+});
+
   app.post('/api/attendance/start', async (req, res) => {
     
     try {
@@ -612,10 +616,27 @@ app.post('/api/login', async (req, res) => {
       await dbPool.execute(sql, [randomString, new_column]);
 
       // Add a new column to the records table with the name from the variable "new_column"
-      const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
-      dbPool.execute(alterSql).catch(() => {});
+      // Check if the column already exists
+      
+      // 1. SQL to check if the column already exists in the 'records' table
+        const checkColumnSql = `
+          SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'records' AND COLUMN_NAME = ?
+        `;
+
+        // 2. Execute the check. 'process.env.DB_DATABASE' gets your database name from your .env file
+        const [columns] = await dbPool.execute(checkColumnSql, [process.env.DB_DATABASE, new_column]);
+
+        // 3. If the query returns 0 rows, the column does not exist, so we add it.
+        if (columns.length === 0) {
+          console.log(`Column ${new_column} does not exist. Adding it...`);
+          const alterSql = `ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`;
+          await dbPool.execute(alterSql);
+        } else {
+          console.log(`Column ${new_column} already exists. Skipping.`);
+        }
       // Append it as a query parameter to the URL
-      const url = `https://attain423.vercel.app?token=${randomString}`;
+      const url = `https://attain423.vercel.app/?token=${randomString}`;
 
       // Generate QR code as a Data URL string
       const qrCodeDataURL = await QRCode.toDataURL(url);
@@ -630,13 +651,7 @@ app.post('/api/login', async (req, res) => {
   });
 app.post('/api/submit_id', async(req,res)=>{
   const { studentId, token } = req.body;
-  // Set a cookie for studentId, expires in 30 days
-  res.cookie('student_id', studentId, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
-  });
-
+  // Set a cookie for studentId, expires in 30 day
   // Get the selector and validator from the remember_me_token cookie
   if (!req.cookies || !req.cookies.remember_me_token) {
     return res.status(401).json({ success: false, message: 'Not authenticated.' });
@@ -663,11 +678,62 @@ app.post('/api/submit_id', async(req,res)=>{
   await dbPool.execute(updateSql, [studentId, email]);
 
 
-  return res.status(200).json({ success: true, message: 'Token not found.' });; // Redirect to the student page with the studentId as a query parameter
+  return res.status(200).json({ success: true, message: 'Syccessfully submited Student Id.' });; // Redirect to the student page with the studentId as a query parameter
 
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Catch-all for undefined routes (404 handler)
+app.use((req, res) => {
+  res.status(404).send(`
+    <html>
+      <head>
+        <title>404 Not Found</title>
+        <style>
+          body {
+            background: #f9f6fd;
+            color: #444;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            text-align: center;
+            padding: 60px;
+          }
+          .emoji {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: bounce 1.2s infinite;
+          }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0);}
+            50% { transform: translateY(-20px);}
+          }
+          .title {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #7c3aed;
+          }
+          .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+          }
+          a {
+            color: #7c3aed;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s;
+          }
+          a:hover {
+            color: #4f46e5;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="emoji">🐾</div>
+        <div class="title">404 - Page Not Found</div>
+        <div class="subtitle">Oops! Looks like you took a wrong turn.<br>
+        Let's get you back <a href="/">home</a>!</div>
+      </body>
+    </html>
+  `);
+});
 
 module.exports = app;
 
