@@ -130,7 +130,7 @@ app.get('/auth/google',
 app.get('/auth/google/callback', 
   // This middleware triggers the Passport authentication flow.
   passport.authenticate('google', { 
-    failureRedirect: '/??message=Domain is not Authorized!', // Redirect if authentication fails
+    failureRedirect: '/?message=Domain is not Authorized!', // Redirect if authentication fails
     session: false // We are using a custom token, so we can disable sessions here if we want
   }),
   // This function executes only on successful authentication.
@@ -188,7 +188,7 @@ app.get('/auth/google/callback',
 
     } catch(err) {
       console.error('Error creating remember_me token:', err);
-      res.redirect('/login?error=auth_failed');
+      res.redirect('/?error=auth_failed');
     }
   }
 );
