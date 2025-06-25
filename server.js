@@ -64,7 +64,10 @@ passport.use(new GoogleStrategy({
     if (!email) {
       return done(new Error("No email found in Google profile"), null);
     }
-    if (email.split('@')[1] !== "g.bracu.ac.bd" || email.split('@')[1] !== "bracu.ac.bd" ) {
+    const authorizedDomains = ["g.bracu.ac.bd", "bracu.ac.bd"];
+    const domain = email.split('@')[1];
+
+    if (!authorizedDomains.includes(domain)) {
       return done(new Error("Domain is not authorized"), null);
     }
 
