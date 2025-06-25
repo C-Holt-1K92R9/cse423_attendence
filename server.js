@@ -1,3 +1,6 @@
+import { inject } from '@vercel/analytics';
+inject();
+
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
