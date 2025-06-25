@@ -184,7 +184,7 @@ app.get('/auth/google/callback',
       });
 
       // 5. Redirect the user to the desired page
-      res.redirect('/student');
+      res.redirect('/');
 
     } catch(err) {
       console.error('Error creating remember_me token:', err);
