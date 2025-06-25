@@ -109,35 +109,7 @@
         </script>
         <p class="text-center text-gray-500 mb-6">Kindly submit your attendance before your faculty closes the QR code. Thank you!</p>
         
-        <form id="attendanceForm">
-            <input 
-                type="hidden" 
-                id="studentId" 
-                name="studentId"
-                required
-            >
-            <script>
-                // Set the hidden input value from the 'student_id' cookie
-                document.addEventListener('DOMContentLoaded', function() {
-                    function getCookie(name) {
-                        const nameEQ = name + "=";
-                        const ca = document.cookie.split(';');
-                        for(let i = 0; i < ca.length; i++) {
-                            let c = ca[i];
-                            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                            if (c.indexOf(nameEQ) === 0) {
-                                return decodeURIComponent(c.substring(nameEQ.length, c.length));
-                            }
-                        }
-                        return null;
-                    }
-                    const studentId = getCookie('student_id');
-                    if (studentId) {
-                        document.getElementById('studentId').value = studentId;
-                    }
-                });
-            </script>
-            
+        <form id="attendanceForm">   
             <div class="flex items-center justify-center">
                 <button 
                     type="submit" 
@@ -166,6 +138,7 @@
 
     <!-- This script handles sending the form data to your Node.js server -->
     <script>
+         
         
         // Get references to the HTML elements we'll be working with.
         const form = document.getElementById('attendanceForm');
@@ -191,9 +164,17 @@
                 }
                 return '';
             }
-            const token = getCookie('token') || '';
+           const token = getCookie('token') || '';
+            if (!token) {
+                submitButton.disabled = true;
+                submitButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+                submitButton.classList.remove('bg-blue-500', 'hover:bg-blue-700');
+                messageArea.textContent = 'Authentication token missing. Please log in again.';
+                messageArea.className = 'mt-4 text-center font-medium text-red-600';
+                return;
+            }
             // 2. Get the value from the input field.
-            const studentId = studentIdInput.value;
+            const studentId = getCookie('student_id');
 
             // 3. Disable the button to prevent multiple submissions while waiting for a response.
             submitButton.disabled = true;
