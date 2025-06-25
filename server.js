@@ -65,7 +65,7 @@ const getRememberMeUser = async (cookies) => {
   return userRows.length > 0 ? userRows[0] : null;
 };
 
-const now = new Date();
+const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
 const dd = String(now.getDate()).padStart(2, '0');
 const mm = String(now.getMonth() + 1).padStart(2, '0');
 const yyyy = now.getFullYear();
@@ -275,12 +275,13 @@ app.post('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8
 
 app.post('/api/attendance/stop', async (req, res) => {
   const randomString = null;
-  await dbPool.execute("INSERT INTO verification (token, date) VALUES (?, ?)", [randomString, new_column]);
+  await dbPool.execute("UPDATE verification SET token = NULL, date = NULL ORDER BY ID DESC LIMIT 1");
   res.sendStatus(200);
 });
 
 app.post('/api/attendance/start', async (req, res) => {
   try {
+    console.log(`I am here 1`);
     const randomString = crypto.randomBytes(32).toString('hex');
     await dbPool.execute("INSERT INTO verification (token, date) VALUES (?, ?)", [randomString, new_column]);
     const [columns] = await dbPool.execute(`
@@ -288,6 +289,7 @@ app.post('/api/attendance/start', async (req, res) => {
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'records' AND COLUMN_NAME = ?
     `, [process.env.DB_DATABASE, new_column]);
     if (columns.length === 0) {
+      console.log(`Adding new column: ${new_column}`);
       await dbPool.execute(`ALTER TABLE records ADD COLUMN ${new_column}`);
     }
     const url = `https://attain423.vercel.app/?token=${randomString}`;
