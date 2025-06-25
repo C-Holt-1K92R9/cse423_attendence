@@ -288,7 +288,7 @@ app.post('/api/attendance/start', async (req, res) => {
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'records' AND COLUMN_NAME = ?
     `, [process.env.DB_DATABASE, new_column]);
     if (columns.length === 0) {
-      await dbPool.execute(`ALTER TABLE records ADD COLUMN \`${new_column}\` INT DEFAULT 0`);
+      await dbPool.execute(`ALTER TABLE records ADD COLUMN ${new_column}`);
     }
     const url = `https://attain423.vercel.app/?token=${randomString}`;
     const qrCodeDataURL = await QRCode.toDataURL(url);
