@@ -56,14 +56,19 @@ const getRememberMeUser = async (cookies) => {
   const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
   if (tokenRows.length === 0) return null;
   const authToken = tokenRows[0];
-  if (new Date(authToken.expires) < new Date()) {
+  // Check expiry using Asia/Dhaka timezone
+  const nowDhaka = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
+  if (new Date(authToken.expires) < nowDhaka) {
     await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
     return null;
   }
   const match = await bcrypt.compare(validator, authToken.hashed_validator);
   if (!match) return null;
+  // Explicitly select all columns from users table
   const [userRows] = await dbPool.execute('SELECT * FROM users WHERE Email = ?', [authToken.email]);
-  return userRows.length > 0 ? userRows[0] : null;
+  if (userRows.length === 0) return null;
+  // Return the full user object
+  return userRows[0];
 };
 
 const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
@@ -204,6 +209,7 @@ app.get('/', async (req, res) => {
   req.session.email = user.Email;
   req.session.name = user.Name;
   req.session.user = user.id;
+
   return user.type === 0 ? res.redirect('/student') : res.redirect('/admin/dashboard');
 });
 
@@ -236,7 +242,7 @@ app.get('/student', async (req, res) => {
   if (!user.StudentID) {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
-
+  
   res.cookie('student_id', user.StudentID, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
