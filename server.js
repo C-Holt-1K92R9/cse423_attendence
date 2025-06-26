@@ -10,6 +10,7 @@ const QRCode = require('qrcode');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const MySQLStore = require('express-mysql-session')(session);
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -117,12 +118,24 @@ passport.deserializeUser(async (id, done) => {
 
 // --- IP Whitelist Middleware ---
 const ALLOWED_IP = process.env.ALLOWED_IP;
-const ipWhitelistMiddleware = (req, res, next) => {
+const ipWhitelistMiddleware = async (req, res, next) => {
   let requestIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   if (requestIp && requestIp.includes(',')) requestIp = requestIp.split(',')[0].trim();
   if (requestIp && requestIp.startsWith('::ffff:')) requestIp = requestIp.replace('::ffff:', '');
-  if (requestIp === ALLOWED_IP) return next();
-  res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized network.' });
+
+  try {
+    // Use ipinfo.io to get ISP info
+    const response = await axios.get(`https://ipinfo.io/${requestIp}/json?token=${process.env.IPINFO_TOKEN}`);
+    const isp = response.data.org || '';
+    console.log(`Request IP: ${requestIp}, ISP: ${isp}`);
+
+    if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
+      return next();
+    }
+    res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized ISP.' });
+  } catch (error) {
+    res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
+  }
 };
 
 // --- Routes ---
@@ -152,7 +165,9 @@ app.get('/auth/google/callback',
     }
   }
 );
-
+app.get('/manual', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'manual.html')); 
+});
 app.get('/', async (req, res) => {
   if (req.query && req.query.token) {
     res.cookie('token', req.query.token, {
@@ -310,6 +325,13 @@ app.post('/api/submit_id', async (req, res) => {
   const authToken = tokenRows[0];
   const match = await bcrypt.compare(validator, authToken.hashed_validator);
   if (!match) return res.status(401).json({ success: false, message: 'Token mismatch.' });
+  const [userRows] = await dbPool.execute('SELECT * FROM users WHERE StudentID = ?', [studentId]);
+  if (userRows.length > 0) {
+    return res.status(400).json({ success: false, message: 'This Student ID is already associated with another account. If you believe this is an error, please contact your faculty for assistance.' });
+  }
+  else if (userRows.length === 0) {
+    return res.status(400).json({ success: false, message: 'No record was found for this Student ID in the attendance sheet. For further assistance, please contact your faculty.' });
+  }
   await dbPool.execute(`UPDATE users SET StudentID = ? WHERE Email = ?`, [studentId, authToken.email]);
   return res.status(200).json({ success: true, message: 'Successfully submitted Student Id.' });
 });

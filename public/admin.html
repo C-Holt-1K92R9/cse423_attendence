@@ -276,7 +276,7 @@
             <div id="nav-links" style="display:flex;gap:1.5rem;">
             <a href="/admin.html" class="active"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">home</span> Dashboard</a>
             <a href="/users.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">group</span> Users</a>
-            <a href="/attendance.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span> Attendance</a>
+            <a href="/manual"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span>Manual</a>
             <a href="/api/logout"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
             </div>
         </nav>
@@ -362,7 +362,11 @@
                     View and manage attendance logs and reports.
                 </div>
                 <div class="card-action">
-                    <a href="/attendance.html" class="btn">View Attendance</a>
+                    <form id="manual-attendence" method="POST">
+                        <label for="student-id">Student ID:</label>
+                        <input type="text" id="student-id" name="student_id" required style="padding:0.45rem 1rem;border-radius:6px;border:1px solid var(--border);font-size:1rem;margin-left:0.3rem;background:#f1f5f9;color:#1e293b;outline:none;">
+                        <button type="submit" class="btn" style="margin-top:0.8rem;">Mark Attendance</button>
+                    </form>
                 </div>
             </div>
             <div class="card">
