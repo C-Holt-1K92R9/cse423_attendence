@@ -236,12 +236,13 @@ app.get('/student', async (req, res) => {
   if (!user.StudentID) {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
+
   res.cookie('student_id', user.StudentID, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     maxAge: 30 * 24 * 60 * 60 * 1000
   });
-  res.sendFile(path.join(__dirname, 'public', 'student.html'));
+  return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
 // --- Attendance API ---
