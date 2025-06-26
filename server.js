@@ -115,39 +115,47 @@ passport.deserializeUser(async (id, done) => {
     done(err, null);
   }
 });
-const https = require('https');
+
 // --- IP Whitelist Middleware ---
 const ALLOWED_IP = process.env.ALLOWED_IP;
 const ipWhitelistMiddleware = async (req, res, next) => {
   let requestIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   if (requestIp && requestIp.includes(',')) requestIp = requestIp.split(',')[0].trim();
   if (requestIp && requestIp.startsWith('::ffff:')) requestIp = requestIp.replace('::ffff:', '');
-
+  console.log('Request IP:', requestIp);
   try {
+    const https = require('https');
+    console.log('Fetching ISP info for IP:', requestIp);
     // Use ipinfo.io to get ISP info
     https.get(`https://ipinfo.io/${requestIp}/json`, (res2) => {
-                    let data2 = '';
-                    res2.on('data', chunk => data2 += chunk);
-                    res2.on('end', () => {
-                        const info = JSON.parse(data2);
-                        if (info.org) {
-                            // org is usually like "AS15169 Google LLC"
-                            const isp = info.org.split(' ').slice(1).join(' ');
-                            console.log('IP Address:', requestIp);
-                            console.log('ISP Provider:', isp);
-                        } else {
-                            console.log('IP Address:', requestIp);
-                            console.log('ISP info not found.');
-                        }
-                    });
-                }).on('error', err => {
-      console.error('Error fetching ISP info:', err.message)});
-    console.log(`Request IP: ${requestIp}, ISP: ${isp}`);
-
-    if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
-      return next();
-    }
-    res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized ISP.' });
+      let data2 = '';
+      res2.on('data', chunk => data2 += chunk);
+      res2.on('end', () => {
+        try {
+          const info = JSON.parse(data2);
+          let isp = null;
+          if (info.org) {
+            // org is usually like "AS15169 Google LLC"
+            isp = info.org.split(' ').slice(1).join(' ');
+            console.log('IP Address:', requestIp);
+            console.log('ISP Provider:', isp);
+          } else {
+            console.log('IP Address:', requestIp);
+            console.log('ISP info not found.');
+          }
+          if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
+            return next();
+          } else {
+            return res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized ISP.' });
+          }
+        } catch (parseErr) {
+          return res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
+        }
+      });
+    }).on('error', err => {
+      console.error('Error fetching ISP info:', err.message);
+      return res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
+    });
   } catch (error) {
     res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
   }
@@ -304,14 +312,12 @@ app.post('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8
 });
 
 app.post('/api/attendance/stop', async (req, res) => {
-  const randomString = null;
-  await dbPool.execute("UPDATE verification SET token = NULL, date = NULL ORDER BY ID DESC LIMIT 1");
+  await dbPool.execute("UPDATE verification SET token = NULL WHERE date = ?", [new_column]);
   res.sendStatus(200);
 });
 
 app.post('/api/attendance/start', async (req, res) => {
   try {
-    console.log(`I am here 1`);
     const randomString = crypto.randomBytes(32).toString('hex');
     await dbPool.execute("INSERT INTO verification (token, date) VALUES (?, ?)", [randomString, new_column]);
     const [columns] = await dbPool.execute(`
