@@ -115,7 +115,7 @@ passport.deserializeUser(async (id, done) => {
     done(err, null);
   }
 });
-
+const https = require('https');
 // --- IP Whitelist Middleware ---
 const ALLOWED_IP = process.env.ALLOWED_IP;
 const ipWhitelistMiddleware = async (req, res, next) => {
@@ -125,8 +125,23 @@ const ipWhitelistMiddleware = async (req, res, next) => {
 
   try {
     // Use ipinfo.io to get ISP info
-    const response = await axios.get(`https://ipinfo.io/${requestIp}/json?token=${process.env.IPINFO_TOKEN}`);
-    const isp = response.data.org || '';
+    https.get(`https://ipinfo.io/${requestIp}/json`, (res2) => {
+                    let data2 = '';
+                    res2.on('data', chunk => data2 += chunk);
+                    res2.on('end', () => {
+                        const info = JSON.parse(data2);
+                        if (info.org) {
+                            // org is usually like "AS15169 Google LLC"
+                            const isp = info.org.split(' ').slice(1).join(' ');
+                            console.log('IP Address:', requestIp);
+                            console.log('ISP Provider:', isp);
+                        } else {
+                            console.log('IP Address:', requestIp);
+                            console.log('ISP info not found.');
+                        }
+                    });
+                }).on('error', err => {
+      console.error('Error fetching ISP info:', err.message)});
     console.log(`Request IP: ${requestIp}, ISP: ${isp}`);
 
     if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
