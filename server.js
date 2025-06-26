@@ -177,7 +177,9 @@ app.get('/auth/google/callback',
       const selector = crypto.randomBytes(16).toString('hex');
       const validator = crypto.randomBytes(32).toString('hex');
       const hashedValidator = await bcrypt.hash(validator, 10);
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      // Set expiry in Asia/Dhaka timezone
+      const nowDhaka = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
+      const expires = new Date(nowDhaka.getTime() + 30 * 24 * 60 * 60 * 1000);
       const [existingTokens] = await dbPool.execute("SELECT * FROM auth_tokens WHERE email = ?", [user.Email]);
       if (existingTokens.length > 0) {
         await dbPool.execute("UPDATE auth_tokens SET selector = ?, hashed_validator = ?, expires = ? WHERE email = ?", [selector, hashedValidator, expires, user.Email]);
@@ -242,7 +244,7 @@ app.get('/student', async (req, res) => {
   if (!user.StudentID) {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
-  
+ res.cookie('student_id', user.StudentID || '', { httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 30*24*60*60*1000 }); 
   return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
