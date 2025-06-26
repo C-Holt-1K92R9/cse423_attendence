@@ -243,11 +243,6 @@ app.get('/student', async (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
   
-  res.cookie('student_id', user.StudentID, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000
-  });
   return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
