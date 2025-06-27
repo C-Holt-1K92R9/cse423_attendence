@@ -384,6 +384,8 @@ app.post('/api/submit_id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'No record was found for this Student ID in the attendance sheet. For further assistance, please contact your faculty.' });
   }
   await dbPool.execute(`UPDATE users SET StudentID = ? WHERE Email = ?`, [studentId, authToken.email]);
+
+  const user = await getRememberMeUser(req.cookies);
   res.cookie('student_id', user.StudentID || '', { 
       httpOnly: false, 
       secure: true, // This will be true on Vercel
