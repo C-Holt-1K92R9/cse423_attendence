@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Admin Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Modern Google Fonts and Material Icons -->
+    <!-- Google Fonts and Material Icons -->
     <link href="https://fonts.googleapis.com/css?family=Inter:400,600,700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
@@ -18,9 +18,7 @@
             --radius: 16px;
             --transition: 0.18s cubic-bezier(.4,0,.2,1);
         }
-        html, body {
-            height: 100%;
-        }
+        html, body { height: 100%; }
         body {
             margin: 0;
             font-family: 'Inter', Arial, sans-serif;
@@ -51,8 +49,19 @@
         nav {
             display: flex;
             gap: 1.5rem;
+            position: relative;
         }
-        nav a {
+        .menu-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: none;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+        .nav-link {
             color: #fff;
             text-decoration: none;
             font-weight: 600;
@@ -61,13 +70,11 @@
             border-radius: 8px;
             transition: background var(--transition), color var(--transition);
         }
-        nav a:hover, nav a.active {
+        .nav-link:hover, .nav-link.active {
             background: rgba(255,255,255,0.13);
             color: #e0e7ff;
         }
-        main {
-            margin-top: 2.5rem;
-        }
+        main { margin-top: 2.5rem; }
         .dashboard-container {
             max-width: 1200px;
             margin: 0 auto;
@@ -119,7 +126,7 @@
             margin-bottom: 1.5rem;
             z-index: 1;
         }
-        .card-action {
+        .card-action, .card-action-attendance {
             margin-top: auto;
             z-index: 1;
             width: 100%;
@@ -142,13 +149,16 @@
             background: var(--primary-dark);
             box-shadow: 0 4px 16px rgba(37, 99, 235, 0.13);
         }
+        .btn-secondary {
+            background: #475569;
+        }
         /* Form styling */
         form label {
             font-weight: 600;
             color: #475569;
             margin-right: 0.5rem;
         }
-        form select {
+        form select, form input[type="text"], form input[type="email"], form input[type="file"] {
             padding: 0.45rem 1rem;
             border-radius: 6px;
             border: 1px solid var(--border);
@@ -159,12 +169,66 @@
             outline: none;
             transition: border var(--transition);
         }
-        form select:focus {
+        form select:focus, form input:focus {
             border: 1.5px solid var(--primary);
         }
         form button.btn {
             margin-top: 1.2rem;
             width: 100%;
+        }
+        /* Overlay styling */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(29, 35, 42, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 1000;
+        }
+        .overlay.show { display: flex; }
+        .overlay-content {
+            background-color: white;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            min-width: 320px;
+        }
+        .overlay-content h2 {
+            margin-top: 0;
+            margin-bottom: 1.2rem;
+            color: #2563eb;
+            text-align: center;
+            width: 100%;
+        }
+        .overlay-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 38px;
+            height: 38px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(37,99,235,0.13);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.18s cubic-bezier(.4,0,.2,1);
+        }
+        .overlay-content .csv-format {
+            margin-top: 1rem;
+            color: #475569;
+            font-size: 0.95rem;
         }
         /* Responsive */
         @media (max-width: 900px) {
@@ -184,147 +248,11 @@
             }
         }
         @media (max-width: 600px) {
-            .dashboard-container {
-                padding: 0 0.5rem;
-            }
-            .card {
-                padding: 1.3rem 1rem 1rem 1rem;
-            }
-            header h1 {
-                font-size: 1.3rem;
-            }
-        }
-    </style>
-    <style>
-        /* The overlay container that covers the entire screen */
-        .qr-overlay {
-            /* Initially hidden */
-            display: none; 
-            
-            /* Full screen positioning */
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw; /* Cover the full viewport width */
-            height: 100vh; /* Cover the full viewport height */
-            
-            /* Centering the content (the QR code box) */
-            justify-content: center;
-            align-items: center;
-
-            /* The blurred background effect */
-            background-color: rgba(29, 35, 42, 0.7); /* A semi-transparent dark background */
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px); /* For Safari browser support */
-
-            /* Ensure it's on top of all other content */
-            z-index: 1000; 
-        }
-
-        /* Use this class to show the overlay (e.g., add it with JavaScript) */
-        .qr-overlay.show {
-            display: flex;
-        }
-
-        /* The actual box that will contain your QR code image */
-        #qr-code-container {
-            background-color: white;
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            text-align: center; /* Ensures the QR code image is centered if it's an inline element */
-}
-
-    </style>
-</head>
-<body>
-    <div class="qr-overlay" id="qr-overlay">
-        <button id="qr-close-btn" style="
-            position: absolute;
-            top: 18px;
-            right: 18px;
-            background: #2563eb;
-            color: #fff;
-            border: none;
-            border-radius: 50%;
-            width: 38px;
-            height: 38px;
-            font-size: 1.3rem;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(37,99,235,0.13);
-            z-index: 10;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.18s cubic-bezier(.4,0,.2,1);
-        " title="Close">&times;</button>
-  <div id="qr-code-container">
-   
-    <!-- QR code will go here -->
-  </div>
-</div>
-    <header>
-        <h1><span class="material-icons" style="font-size:1.7rem;vertical-align:middle;">dashboard</span> Admin Dashboard</h1>
-        <nav id="navbar">
-            <div style="margin-left:auto;">
-                <button id="menu-toggle" aria-label="Open navigation" style="background:none;border:none;cursor:pointer;display:none;">
-                    <span class="material-icons" style="font-size:2rem;">menu</span>
-                </button>
-            </div>
-            </button>
-            <div id="nav-links" style="display:flex;gap:1.5rem;">
-            <a href="/admin.html" class="active"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">home</span> Dashboard</a>
-            <a href="/users.html"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">group</span> Users</a>
-            <a href="/manual"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span>Manual</a>
-            <a href="/api/logout"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
-            </div>
-        </nav>
-        <script>
-            // Hamburger menu toggle
-            const menuToggle = document.getElementById('menu-toggle');
-            const navLinks = document.getElementById('nav-links');
-            function checkWidth() {
-            if (window.innerWidth <= 600) {
-                menuToggle.style.display = 'block';
-                navLinks.style.display = 'none';
-            } else {
-                menuToggle.style.display = 'none';
-                navLinks.style.display = 'flex';
-            }
-            }
-            menuToggle.addEventListener('click', function() {
-            if (navLinks.style.display === 'none' || navLinks.style.display === '') {
-                navLinks.style.display = 'flex';
-                navLinks.style.flexDirection = 'column';
-                navLinks.style.background = '#2563eb';
-                navLinks.style.position = 'absolute';
-                navLinks.style.top = '60px';
-                navLinks.style.right = '20px';
-                navLinks.style.boxShadow = '0 4px 24px rgba(37,99,235,0.18)';
-                navLinks.style.padding = '1rem 1.5rem';
-                navLinks.style.borderRadius = '12px';
-                navLinks.style.zIndex = '100';
-                navLinks.querySelectorAll('a').forEach(a => {
-                a.style.margin = '0.5rem 0';
-                });
-            } else {
-                navLinks.style.display = 'none';
-            }
-            });
-            window.addEventListener('resize', checkWidth);
-            window.addEventListener('DOMContentLoaded', checkWidth);
-        </script>
-        <style>
-            @media (max-width: 600px) {
-            #navbar {
-                position: relative;
-                width: 100%;
-            }
-            #menu-toggle {
-                display: block !important;
-            }
-            #nav-links {
+            .dashboard-container { padding: 0 0.5rem; }
+            .card { padding: 1.3rem 1rem 1rem 1rem; }
+            header h1 { font-size: 1.3rem; }
+            .menu-toggle { display: block !important; }
+            .nav-links {
                 display: none;
                 flex-direction: column;
                 position: absolute;
@@ -336,24 +264,94 @@
                 border-radius: 12px;
                 z-index: 100;
             }
-            #nav-links a {
-                margin: 0.5rem 0;
-                width: 100%;
-            }
-            }
-        </style>
+            .nav-link { margin: 0.5rem 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <!-- QR Code Overlay -->
+    <div class="overlay" id="qr-overlay">
+        <button class="overlay-close" id="qr-close-btn" title="Close">&times;</button>
+        <div class="overlay-content" id="qr-code-container"></div>
+    </div>
+    <!-- Add Student CSV Overlay -->
+    <div class="overlay" id="add-student-csv-overlay">
+        <button class="overlay-close" id="add-student-csv-close-btn" title="Close">&times;</button>
+        <div class="overlay-content">
+            <h2>Add Students via CSV</h2>
+            <form id="add-student-csv-form" style="display:flex;flex-direction:column;gap:1.2rem;align-items:center;">
+                <div style="display:flex;align-items:center;width:100%;gap:1rem;">
+                    <label style="min-width:110px;">CSV File:</label>
+                    <input type="file" name="csv_file" accept=".csv" required>
+                </div>
+                <button type="submit" class="btn">Upload CSV</button>
+            </form>
+            <p id="add-student-csv-message" style="margin-top:0.5rem;font-weight:600;"></p>
+            <div class="csv-format">
+                <strong>CSV Format:</strong><br>
+                student_id, name, email, course_code, section
+            </div>
+        </div>
+    </div>
+    <!-- Add Student Overlay -->
+    <div class="overlay" id="add-student-overlay">
+        <button class="overlay-close" id="add-student-close-btn" title="Close">&times;</button>
+        <div class="overlay-content">
+            <h2>Add Student</h2>
+            <form id="add-student-form" style="display:flex;flex-direction:column;gap:1.2rem;align-items:center;">
+                <div style="display:flex;align-items:center;width:100%;gap:1rem;">
+                    <label style="min-width:110px;">Student ID:</label>
+                    <input type="text" name="student_id" required placeholder="e.g. 11223344">
+                </div>
+                <div style="display:flex;align-items:center;width:100%;gap:1rem;">
+                    <label style="min-width:110px;">Name:</label>
+                    <input type="text" name="name" required placeholder="Full Name">
+                </div>
+                <div style="display:flex;align-items:center;width:100%;gap:1rem;">
+                    <label style="min-width:110px;">Email:</label>
+                    <input type="email" name="email" required placeholder="student@email.com">
+                </div>
+                <div style="display:flex;align-items:center;width:100%;gap:1rem;">
+                    <label style="min-width:110px;">Course Code:</label>
+                    <input type="text" name="course_code" required placeholder="e.g. CSE423">
+                </div>
+                <div style="display:flex;align-items:center;width:100%;gap:1rem;">
+                    <label style="min-width:110px;">Section:</label>
+                    <input type="text" name="section" required placeholder="e.g. 7">
+                </div>
+                <button type="submit" class="btn">Add Student</button>
+            </form>
+            <p id="add-student-message" style="margin-top:0.5rem;font-weight:600;"></p>
+        </div>
+    </div>
+    <header>
+        <h1>
+            <span class="material-icons" style="font-size:1.7rem;vertical-align:middle;">dashboard</span>
+            Admin Dashboard
+        </h1>
+        <nav id="navbar">
+            <button class="menu-toggle" id="menu-toggle" aria-label="Open navigation">
+                <span class="material-icons" style="font-size:2rem;">menu</span>
+            </button>
+            <div class="nav-links" id="nav-links">
+                <a href="/admin/dashboard" class="nav-link active"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">home</span> Dashboard</a>
+                <!--<a href="/users.html" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">group</span> Users</a>-->
+                <a href="/manual" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span>Manual</a>
+                <a href="/api/logout" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
+            </div>
+        </nav>
     </header>
     <main>
         <div class="dashboard-container">
             <div class="card">
-                <div class="card-title"><span class="material-icons">person_add</span>Take Attendence</div>
+                <div class="card-title"><span class="material-icons">person_add</span>Take Attendance</div>
                 <div class="card-content">
-                    Take attendence with a verification code only for the students who are present in the class.
+                    Take attendance with a verification code only for the students who are present in the class.
                 </div>
                 <div class="card-action-attendance">
-                <form action="">
-                    <button type="submit" class="btn">Start Attendance</button>
-                </form>
+                    <form>
+                        <button type="submit" class="btn">Start Attendance</button>
+                    </form>
                 </div>
             </div>
             <div class="card">
@@ -364,19 +362,20 @@
                 <div class="card-action">
                     <form id="manual-attendence" method="POST">
                         <label for="student-id">Student ID:</label>
-                        <input type="text" id="student-id" name="student_id" placeholder="e.g. 11223344" required style="padding:0.45rem 1rem;border-radius:6px;border:1px solid var(--border);font-size:1rem;margin-left:0.3rem;background:#f1f5f9;color:#1e293b;outline:none;">
+                        <input type="text" id="student-id" name="student_id" placeholder="e.g. 11223344" required>
                         <button type="submit" id="manual-btn" class="btn" style="margin-top:0.8rem;">Mark Attendance</button>
                     </form>
                     <p id="manual-attendance-message" style="margin-top:0.8rem;color:#2563eb;font-weight:600;"></p>
                 </div>
             </div>
             <div class="card">
-                <div class="card-title"><span class="material-icons">settings</span> Settings</div>
+                <div class="card-title"><span class="material-icons">person_add_alt</span> Add Student</div>
                 <div class="card-content">
-                    Configure system preferences and admin settings.
+                    Add a new student to the system manually.
                 </div>
-                <div class="card-action">
-                    <a href="/settings.html" class="btn">Settings</a>
+                <div class="card-action" style="display: flex; gap: 1rem;">
+                    <button id="add-student-btn" class="btn" type="button">Add Student</button>
+                    <button id="add-student-csv-btn" class="btn btn-secondary" type="button">Add Student via CSV</button>
                 </div>
             </div>
             <div class="card">
@@ -385,7 +384,7 @@
                     Generate and download attendance and user reports.
                 </div>
                 <div class="card-action">
-                    <form action="">
+                    <form id="report_download">
                         <input type="hidden" name="action" value="generate-reports">
                         <label for="section">Section:</label>
                         <select id="section" name="section">
@@ -399,89 +398,269 @@
             </div>
         </div>
     </main>
-</body>
-<script>
-    document.getElementById('manual-attendence').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const studentId = document.getElementById('student-id').value.trim();
-    document.getElementById('manual-btn').innerHTML = "Submitting...";
-    const manual_response = await fetch('/api/attendance/manual', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ student_id: studentId })
-    });
-    const manual_data = await manual_response.json();
-    document.getElementById('manual-attendance-message').textContent = manual_data.message || 'No response from server.';
-    setTimeout(() => {
-        document.getElementById('manual-attendance-message').textContent = '';
-    }, 2000);
-    document.getElementById('manual-btn').innerHTML = "Mark Attendance";
-
-    
-    });
-    
-    document.getElementById('qr-close-btn').addEventListener('click', async function() {
-    document.getElementById('qr-overlay').classList.remove('show');
-    document.getElementById('qr-code-container').innerHTML = '';
-    await fetch('/api/attendance/stop', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-        });
-});
-     document.querySelector('.card-action-attendance form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const qrContainer = document.getElementById('qr-code-container');
-        qrContainer.innerHTML = 'Loading QR Code...';
-        const response = await fetch('/api/attendance/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-        });
- try {
-        const imageTagHtml = await response.text();
-        qrContainer.innerHTML = imageTagHtml;
-        document.getElementById("qr-overlay").classList.add("show");
-
-    } catch (error) {
-        console.error('Failed to load QR code:', error);
-        qrContainer.innerHTML = 'Could not load QR code.';
-    }
-       
-    });
-
-    document.querySelector('.card-action form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const section = this.section.value;
-        const formData = new FormData();
-        formData.append('section', section);
-
-        const response = await fetch('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8', {
-            method: 'POST',
-            headers: {
-                        'Content-Type': 'application/json' // Tell the server we're sending JSON
-                    },
-             body: JSON.stringify({ section: section })
-        });
-
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `section_${section}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } else {
-            const data = await response.json().catch(() => ({}));
-            alert(data.message || 'Failed to generate report.');
+    <script>
+        // Hamburger menu toggle
+        const menuToggle = document.getElementById('menu-toggle');
+        const navLinks = document.getElementById('nav-links');
+        function checkWidth() {
+            if (window.innerWidth <= 600) {
+                menuToggle.style.display = 'block';
+                navLinks.style.display = 'none';
+            } else {
+                menuToggle.style.display = 'none';
+                navLinks.style.display = 'flex';
+                navLinks.style.flexDirection = '';
+                navLinks.style.position = '';
+                navLinks.style.top = '';
+                navLinks.style.right = '';
+                navLinks.style.background = '';
+                navLinks.style.boxShadow = '';
+                navLinks.style.padding = '';
+                navLinks.style.borderRadius = '';
+                navLinks.style.zIndex = '';
+                navLinks.querySelectorAll('a').forEach(a => {
+                    a.style.margin = '';
+                });
+            }
         }
-    });
-</script>
+        menuToggle.addEventListener('click', function() {
+            if (navLinks.style.display === 'none' || navLinks.style.display === '') {
+                navLinks.style.display = 'flex';
+                navLinks.style.flexDirection = 'column';
+                navLinks.style.background = '#2563eb';
+                navLinks.style.position = 'absolute';
+                navLinks.style.top = '60px';
+                navLinks.style.right = '20px';
+                navLinks.style.boxShadow = '0 4px 24px rgba(37,99,235,0.18)';
+                navLinks.style.padding = '1rem 1.5rem';
+                navLinks.style.borderRadius = '12px';
+                navLinks.style.zIndex = '100';
+                navLinks.querySelectorAll('a').forEach(a => {
+                    a.style.margin = '0.5rem 0';
+                });
+            } else {
+                navLinks.style.display = 'none';
+            }
+        });
+        window.addEventListener('resize', checkWidth);
+        window.addEventListener('DOMContentLoaded', checkWidth);
+
+        // Overlay helpers
+        function showOverlay(id) {
+            document.getElementById(id).classList.add('show');
+        }
+        function hideOverlay(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+
+        // QR Overlay
+        document.querySelector('.card-action-attendance form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const qrContainer = document.getElementById('qr-code-container');
+            qrContainer.innerHTML = 'Loading QR Code...';
+            try {
+                const response = await fetch('/api/attendance/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const imageTagHtml = await response.text();
+                qrContainer.innerHTML = imageTagHtml;
+                showOverlay('qr-overlay');
+            } catch (error) {
+                qrContainer.innerHTML = 'Could not load QR code.';
+            }
+        });
+        document.getElementById('qr-close-btn').addEventListener('click', async function() {
+            hideOverlay('qr-overlay');
+            document.getElementById('qr-code-container').innerHTML = '';
+            await fetch('/api/attendance/stop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+        });
+
+        // Manual Attendance
+        document.getElementById('manual-attendence').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const studentId = document.getElementById('student-id').value.trim();
+            const btn = document.getElementById('manual-btn');
+            btn.innerHTML = "Submitting...";
+            const manual_response = await fetch('/api/attendance/manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: studentId })
+            });
+            const manual_data = await manual_response.json();
+            const messageElem = document.getElementById('manual-attendance-message');
+            messageElem.textContent = manual_data.message || 'No response from server.';
+            messageElem.style.color = manual_data.success ? '#22c55e' : '#ef4444';
+            setTimeout(() => {
+                messageElem.textContent = '';
+                messageElem.style.color = '#2563eb';
+                document.getElementById('student-id').value = '';
+            }, 3000);
+            btn.innerHTML = "Mark Attendance";
+        });
+
+        // Add Student Overlay
+        document.getElementById('add-student-btn').addEventListener('click', function() {
+            showOverlay('add-student-overlay');
+            document.getElementById('add-student-message').textContent = '';
+        });
+        document.getElementById('add-student-close-btn').addEventListener('click', function() {
+            hideOverlay('add-student-overlay');
+            document.getElementById('add-student-form').reset();
+            document.getElementById('add-student-message').textContent = '';
+        });
+        document.getElementById('add-student-overlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideOverlay('add-student-overlay');
+                document.getElementById('add-student-form').reset();
+                document.getElementById('add-student-message').textContent = '';
+            }
+        });
+        document.getElementById('add-student-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('button[type="submit"]');
+            btn.textContent = "Adding...";
+            btn.disabled = true;
+            const data = {
+                student_id: form.student_id.value.trim(),
+                name: form.name.value.trim(),
+                email: form.email.value.trim(),
+                course_code: form.course_code.value.trim(),
+                section: form.section.value.trim()
+            };
+            const msgElem = document.getElementById('add-student-message');
+            try {
+                const res = await fetch('/api/students/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                msgElem.textContent = result.message || 'No response from server.';
+                msgElem.style.color = result.success ? '#22c55e' : '#ef4444';
+                if (result.success) form.reset();
+            } catch (err) {
+                msgElem.textContent = 'Failed to add student.';
+                msgElem.style.color = '#ef4444';
+            }
+            btn.textContent = "Add Student";
+            btn.disabled = false;
+            setTimeout(() => { msgElem.textContent = ''; }, 2000);
+        });
+
+        // Add Student CSV Overlay
+        document.getElementById('add-student-csv-btn').addEventListener('click', function() {
+            showOverlay('add-student-csv-overlay');
+            document.getElementById('add-student-csv-message').textContent = '';
+        });
+        document.getElementById('add-student-csv-close-btn').addEventListener('click', function() {
+            hideOverlay('add-student-csv-overlay');
+            document.getElementById('add-student-csv-form').reset();
+            document.getElementById('add-student-csv-message').textContent = '';
+        });
+        document.getElementById('add-student-csv-overlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideOverlay('add-student-csv-overlay');
+                document.getElementById('add-student-csv-form').reset();
+                document.getElementById('add-student-csv-message').textContent = '';
+            }
+        });
+        document.getElementById('add-student-csv-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+    const fileInput = form.elements['csv_file'];
+    const msgElem = document.getElementById('add-student-csv-message');
+
+    // --- Reset state at the beginning ---
+    btn.textContent = "Uploading...";
+    btn.disabled = true;
+    msgElem.textContent = '';
+
+    if (!fileInput.files.length) {
+        msgElem.textContent = 'Please select a CSV file.';
+        msgElem.style.color = '#ef4444';
+        // Reset button and exit
+        btn.textContent = "Upload CSV";
+        btn.disabled = false;
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const maxSizeInMB = 5; // Example: 5 MB limit
+
+    // --- SUGGESTION 1: File Type Check ---
+    if (file.type !== "text/csv") {
+        msgElem.textContent = 'Invalid file type. Please upload a .csv file.';
+        msgElem.style.color = '#ef4444';
+        btn.textContent = "Upload CSV";
+        btn.disabled = false;
+        return;
+    }
+
+    // --- SUGGESTION 2: File Size Check ---
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+        msgElem.textContent = `File is too large. Maximum size is ${maxSizeInMB} MB.`;
+        msgElem.style.color = '#ef4444';
+        btn.textContent = "Upload CSV";
+        btn.disabled = false;
+        return;
+    }
+
+
+    const formData = new FormData();
+    formData.append('csv_file', file);
+
+    try {
+        const res = await fetch('/api/students/add-csv', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await res.json();
+        msgElem.textContent = result.message || 'No response from server.';
+        msgElem.style.color = result.success ? '#22c55e' : '#ef4444';
+        if (result.success) form.reset();
+    } catch (err) {
+        msgElem.textContent = 'Failed to upload CSV.';
+        msgElem.style.color = '#ef4444';
+    }
+
+    // --- Final state reset ---
+    btn.textContent = "Upload CSV";
+    btn.disabled = false;
+    setTimeout(() => {
+        msgElem.textContent = '';
+    }, 3000);
+});
+
+        // Report Download
+        document.getElementById('report_download').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const section = this.section.value;
+            const response = await fetch('/api/download_report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ section: section })
+            });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `section_${section}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } else {
+                const data = await response.json().catch(() => ({}));
+                alert(data.message || 'Failed to generate report.');
+            }
+        });
+    </script>
+</body>
 </html>

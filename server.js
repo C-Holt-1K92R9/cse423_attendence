@@ -11,6 +11,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const MySQLStore = require('express-mysql-session')(session);
 const axios = require('axios');
+const fileUpload = require('express-fileupload');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +27,7 @@ const sessionStore = new MySQLStore({}, dbPool);
 
 app.use(cookieParser());
 app.use(express.json());
+app.use(fileUpload());
 app.use(session({
   secret: process.env.SESSION_SECRET,
   store: sessionStore,
@@ -303,7 +305,12 @@ app.post('/api/login', async (req, res) => {
         const validator = crypto.randomBytes(32).toString('hex');
         const hashedValidator = await bcrypt.hash(validator, 10);
         const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        await dbPool.execute("INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)", [selector, hashedValidator, email, expires]);
+        const [existingTokens] = await dbPool.execute("SELECT * FROM auth_tokens WHERE email = ?", [email]);
+        if (existingTokens.length > 0) {
+          await dbPool.execute("UPDATE auth_tokens SET selector = ?, hashed_validator = ?, expires = ? WHERE email = ?", [selector, hashedValidator, expires, email]);
+        } else {
+          await dbPool.execute("INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)", [selector, hashedValidator, email, expires]);
+        }
         res.cookie('remember_me_token', `${selector}:${validator}`, { httpOnly: true, secure: true, expires });
       }
       res.status(200).json({ success: true, message: 'Login successful' });
@@ -315,7 +322,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/Qw7pZ9x2Vb1Lk8sJr4Tn6Yc3Mf5Hu0XoPq2Wv8Ez1Rt6Sb9Lm4Jk7Np3Vx5Yc2Tf8', async (req, res) => {
+app.post('/api/download_report', async (req, res) => {
   const sectionValue = req.body.section;
   try {
     const [rows] = await dbPool.execute(`SELECT * FROM records WHERE Section = ?`, [sectionValue]);
@@ -400,6 +407,86 @@ app.post('/api/attendance/manual', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
   }
 });
+
+app.post('/api/students/add', async(req, res)=>{
+  const { student_id, name, email, course_code, section } = req.body;
+  try {
+    await dbPool.query(
+      'INSERT IGNORE INTO records (StudentID, Name, Email, Course, Section) VALUES (?, ?, ?, ?, ?)',
+      [student_id, name, email, course_code, section]
+    );
+    return res.status(200).json({ success: true, message: 'Student added successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Database error while adding student.' });
+  }
+
+
+});
+
+
+app.post('/api/students/add-csv', async (req, res) => {
+  if (!req.files || !req.files.csv_file) {
+    return res.status(400).json({ success: false, message: 'CSV file is required.' });
+  }
+  const csvData = req.files.csv_file.data.toString('utf8');
+  if (!csvData) {
+    return res.status(400).json({ success: false, message: 'CSV data is required.' });
+  }
+
+  // Parse CSV (assume first row is header)
+  const rows = csvData
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+
+  if (rows.length < 2) {
+    return res.status(400).json({ success: false, message: 'CSV must have at least one data row.' });
+  }
+
+  // Expecting: student_id, name, email, course_code, section
+  const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+  const requiredFields = ['student_id', 'name', 'email', 'course_code', 'section'];
+  for (const field of requiredFields) {
+    if (!headers.includes(field)) {
+      return res.status(400).json({ success: false, message: `Missing required column: ${field}` });
+    }
+  }
+
+  const idxStudentId = headers.indexOf('student_id');
+  const idxName = headers.indexOf('name');
+  const idxEmail = headers.indexOf('email');
+  const idxCourse = headers.indexOf('course_code');
+  const idxSection = headers.indexOf('section');
+
+  const insertRows = [];
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const studentId = values[idxStudentId] || '';
+    const name = values[idxName] || '';
+    const email = values[idxEmail] || '';
+    const course = values[idxCourse] || '';
+    const section = values[idxSection] || '';
+    if (studentId && name && email && course && section) {
+      insertRows.push([studentId, name, email, course, section]);
+    }
+  }
+
+  if (insertRows.length === 0) {
+    return res.status(400).json({ success: false, message: 'No valid student records found in CSV.' });
+  }
+
+  try {
+    // Insert or ignore duplicates based on StudentID
+    await dbPool.query(
+      'INSERT IGNORE INTO records (StudentID, Name, Email, Course, Section) VALUES ?',
+      [insertRows]
+    );
+    return res.status(200).json({ success: true, message: `${insertRows.length} students added.` });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Database error while adding students.' });
+  }
+});
+
 // --- 404 Handler ---
 app.use((req, res) => {
   res.status(404).send(`
