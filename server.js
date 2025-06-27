@@ -236,22 +236,17 @@ app.get('/admin/dashboard', async (req, res) => {
 });
 
 app.get('/student', async (req, res) => {
-  const user = await getRememberMeUser(req.cookies);
-  if (!user) {
-    clearAuthCookies(res);
-    res.redirect('/');
+   const user = await getRememberMeUser(req.cookies);
+   if (!user) {
+     clearAuthCookies(res);
+      return res.redirect('/');
+}
+ if (!user.StudentID) {
+    return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
-  if (!user.StudentID) {
-    res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
-  }
-  const [rows] = await dbPool.execute(`SELECT * FROM records WHERE Email = ?`, [user.Email]);
-  
-  res.cookie('student_id_new', rows.StudentID, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000
-  });
-  res.sendFile(path.join(__dirname, 'public', 'student.html'));
+  console.log('User Student ID:', user.StudentID);
+  res.cookie('student_id', user.StudentID || '', { httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 30 * 24 * 60 * 60 * 1000 });
+  return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
 // --- Attendance API ---
