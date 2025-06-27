@@ -244,7 +244,8 @@ app.get('/student', async (req, res) => {
   if (!user.StudentID) {
     res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
-  res.cookie('student_id', user.StudentID, {
+  const [rows] = await dbPool.execute(`SELECT * FROM records WHERE Email = ?`, [user.Email]);
+  res.cookie('student_id', rows.StudentID, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     maxAge: 30 * 24 * 60 * 60 * 1000

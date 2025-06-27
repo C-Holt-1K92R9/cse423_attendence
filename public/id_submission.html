@@ -78,9 +78,8 @@
                 if (response.ok) {
                     messageArea.textContent = 'Student ID submitted successfully! Redirecting...';
                     messageArea.classList.add('text-green-600');
-                    setTimeout(() => {
-                        window.location.href = `/student?token=${encodeURIComponent(token)}`;
-                    }, 2000);
+                    window.location.href = `/student?token=${encodeURIComponent(token)}`;
+                    
                 } else {
                     // Print the message sent from the server
                     messageArea.textContent = result.message || result.error || 'Submission failed. Please try again.';
