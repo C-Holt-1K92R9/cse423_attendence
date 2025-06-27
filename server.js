@@ -198,7 +198,13 @@ app.get('/auth/google/callback',
       secure: true, // This will be true on Vercel
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
-      
+          res.cookie('student_id', user.StudentID || '', { 
+          httpOnly: false, 
+          secure: true, // This will be true on Vercel
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          path: '/' // Makes the cookie work everywhere on your site
+        });
+            
       return res.redirect('/');
 
     } catch (err) {
@@ -257,7 +263,7 @@ app.get('/student', async (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
   console.log('User Student ID:', user.StudentID ? user.StudentID : 'Not set');
-      res.cookie('student_id', user.StudentID || '', { 
+  res.cookie('student_id', user.StudentID || '', { 
       httpOnly: false, 
       secure: true, // This will be true on Vercel
       maxAge: 30 * 24 * 60 * 60 * 1000,
