@@ -186,9 +186,18 @@ app.get('/auth/google/callback',
       } else {
         await dbPool.execute("INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)", [selector, hashedValidator, user.Email, expires]);
       }
-      res.cookie('photo_url', user.Photo_url || '', { httpOnly: false, secure: process.env.NODE_ENV === 'production', expires });
-      res.cookie('remember_me_token', `${selector}:${validator}`, { httpOnly: true, secure: process.env.NODE_ENV === 'production', expires });
-      res.cookie('name', user.Name ? user.Name.split(' ')[0] : '', { httpOnly: false, secure: process.env.NODE_ENV === 'production', expires });
+      res.cookie('photo_url', user.Photo_url || '', { httpOnly: false, 
+      secure: true, // This will be true on Vercel
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/' });
+      res.cookie('remember_me_token', `${selector}:${validator}`, { httpOnly: false, 
+      secure: true, // This will be true on Vercel
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/' });
+      res.cookie('name', user.Name ? user.Name.split(' ')[0] : '', { httpOnly: false, 
+      secure: true, // This will be true on Vercel
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/' });
       res.redirect('/');
     } catch (err) {
       res.redirect('/?error=auth_failed');
@@ -201,9 +210,10 @@ app.get('/manual', (req, res) => {
 app.get('/', async (req, res) => {
   if (req.query && req.query.token) {
     res.cookie('token', req.query.token, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 30 * 60 * 1000
+      httpOnly: false, 
+      secure: true, // This will be true on Vercel
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/'
     });
   }
   const user = await getRememberMeUser(req.cookies);
@@ -245,7 +255,12 @@ app.get('/student', async (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
   console.log('User Student ID:', user.StudentID);
-  res.cookie('student_id', user.StudentID || '', { httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 30 * 24 * 60 * 60 * 1000 });
+  res.cookie('student_id', user.StudentID || '', { 
+  httpOnly: false, 
+  secure: true, // This will be true on Vercel
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+  path: '/' // Makes the cookie work everywhere on your site
+});
   return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
