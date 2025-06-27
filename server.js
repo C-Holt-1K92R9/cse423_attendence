@@ -45,7 +45,6 @@ app.use(passport.session());
 const clearAuthCookies = (res) => {
   res.clearCookie('remember_me_token', { path: '/' });
   res.clearCookie('name', { path: '/' });
-  res.clearCookie('attended', { path: '/' });
   res.clearCookie('photo_url', { path: '/' });
   res.clearCookie('student_id', { path: '/' });
   res.clearCookie('token', { path: '/' });
