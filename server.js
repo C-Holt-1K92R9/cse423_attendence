@@ -355,7 +355,7 @@ app.post('/api/submit_id', async (req, res) => {
   const authToken = tokenRows[0];
   const match = await bcrypt.compare(validator, authToken.hashed_validator);
   if (!match) return res.status(401).json({ success: false, message: 'Token mismatch.' });
-  const [userRows] = await dbPool.execute('SELECT * FROM users WHERE StudentID = ?', [studentId]);
+  const [userRows] = await dbPool.execute('SELECT * FROM records WHERE StudentID = ?', [studentId]);
   if (userRows.length > 0) {
     return res.status(400).json({ success: false, message: 'This Student ID is already associated with another account. If you believe this is an error, please contact your faculty for assistance.' });
   }
