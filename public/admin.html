@@ -331,12 +331,12 @@
         </h1>
         <nav id="navbar">
             <button class="menu-toggle" id="menu-toggle" aria-label="Open navigation">
-                <span class="material-icons" style="font-size:2rem;">menu</span>
+                <span class="material-icons" style="font-size:2rem; position:absolute; right:1rem; top:50%; transform:translateY(-50%);">menu</span>
             </button>
             <div class="nav-links" id="nav-links">
                 <a href="/admin/dashboard" class="nav-link active"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">home</span> Dashboard</a>
                 <!--<a href="/users.html" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">group</span> Users</a>-->
-                <a href="/manual" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span>Manual</a>
+                <a href="/manual" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">event_available</span>Manual & Notice Board</a>
                 <a href="/api/logout" class="nav-link"><span class="material-icons" style="font-size:1.1rem;vertical-align:middle;">logout</span> Logout</a>
             </div>
         </nav>
@@ -357,7 +357,7 @@
             <div class="card">
                 <div class="card-title"><span class="material-icons">fact_check</span>Manual Attendance Record</div>
                 <div class="card-content">
-                    Mark attendance for a student manually by entering their ID below.
+                    Mark (add or remove) attendance for a student manually by entering their ID below.
                 </div>
                 <div class="card-action">
                     <form id="manual-attendence" method="POST">
@@ -371,7 +371,12 @@
             <div class="card">
                 <div class="card-title"><span class="material-icons">person_add_alt</span> Add Student</div>
                 <div class="card-content">
-                    Add a new student to the system manually.
+                    Add a new student to the system manually as one or in bulk. <br>
+                   <span style="color:red;">Note: Ensure the CSV file is formatted correctly.</span> 
+                    <div class="csv-format">
+                <strong>CSV Format:</strong><br>
+                student_id, name, email, course_code, section
+            </div>
                 </div>
                 <div class="card-action" style="display: flex; gap: 1rem;">
                     <button id="add-student-btn" class="btn" type="button">Add Student</button>
@@ -498,7 +503,7 @@
                 messageElem.textContent = '';
                 messageElem.style.color = '#2563eb';
                 document.getElementById('student-id').value = '';
-            }, 3000);
+            }, 5000);
             btn.innerHTML = "Mark Attendance";
         });
 

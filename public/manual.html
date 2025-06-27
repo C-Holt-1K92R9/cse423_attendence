@@ -36,35 +36,41 @@
         </p>
     </section>
     <section>
+        <h2>Notice Board</h2>
+        <h3>New features will come soon. Any new update will loged in this notice board.</h3>
+        <ul>
+            
+        </ul>
+    </section>
+    <section>
         <h2>How the Web App Works</h2>
         <ul>
-            <li><strong>Login:</strong> Admins log in using their credentials to access the dashboard.</li>
-            <li><strong>User Management:</strong> Add, edit, or remove users (students, teachers, or staff) from the system.</li>
-            <li><strong>Bulk User Import:</strong> Upload user lists via CSV for faster onboarding.</li>
-            <li><strong>Attendance Sessions:</strong> Create and schedule attendance sessions for different classes or events.</li>
-            <li><strong>Recurring Sessions:</strong> Set up sessions to repeat automatically on selected days.</li>
-            <li><strong>Mark Attendance:</strong> Users can mark their attendance through the web interface or QR code scanning (if enabled).</li>
-            <li><strong>Manual Attendance Adjustment:</strong> Admins can manually update or correct attendance records.</li>
-            <li><strong>View Reports:</strong> Generate and export attendance reports for specific dates, users, or sessions.</li>
-            <li><strong>Advanced Filtering:</strong> Filter reports by class, date range, or attendance status.</li>
-            <li><strong>Notifications:</strong> Send notifications or reminders to users about attendance requirements.</li>
-            <li><strong>Automated Reminders:</strong> Schedule automatic reminders for upcoming sessions.</li>
-          
+            <li>
+            <strong>Take Attendance:</strong> When the "Start Attendance" button is pressed, a new column is created in the database for that day. Simultaneously, a QR code containing a verification token is generated. Students must scan this QR code to mark their attendance. Once the QR code is closed, no further attendance submissions will be accepted for that session.
+            </li><br>
+            <li>
+            <strong>Manual Attendance Record:</strong> Faculty members can manually mark or update a student's attendance at any time during the day. If an error is made, it can be corrected by re-entering the student's ID through the same process.
+            </li><br>
+            <li>
+            <strong>Add Student:</strong> Faculty members can add students to the database individually or in bulk by uploading a CSV file. <br>
+            <em>Note:</em> The CSV file must follow this format: <code>student_id, name, email, course_code, section</code>.
+            </li><br>
+            <li>
+            <strong>Reports:</strong> Faculty members can download attendance history by section as a CSV file. Select the desired section and click "Generate Report" to obtain the data.
+            </li><br>
         </ul>
     </section>
     <section>
         <h2>Best Practices</h2>
         <ul>
-            <li>Regularly update user information to keep records accurate.</li>
             <li>Use the bulk import feature for efficient user management.</li>
-            <li>Monitor attendance reports and use filters to identify irregularities.</li>
-            <li>Backup data periodically to prevent loss.</li>
-            <li>Review audit logs to ensure proper use of admin privileges.</li>
+            <li>Monitor attendance reports and use filters to identify irregularities. [Comming soon....]</li>
+            <li>Backup data periodically by downloading the reports for each section to prevent any loss.</li>
             <li>Ensure only authorized personnel have admin access.</li>
         </ul>
     </section>
     <footer>
-        <p>For further assistance, contact the system administrator.</p>
+        <p>For further assistance, contact <a href="mailto:kaoushik.debnath.joy@g.bracu.ac.bd">kaoushik.debnath.joy@g.bracu.ac.bd</a>.</p>
     </footer>
 </body>
 </html>

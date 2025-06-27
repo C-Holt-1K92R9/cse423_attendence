@@ -400,10 +400,14 @@ app.post('/api/attendance/manual', async (req, res) => {
   try {
     const [rows] = await dbPool.execute(`SELECT * FROM records WHERE StudentID = ?`, [student_id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'No record found for this Student ID.' });
+    if (rows[0][new_column] === 1) {
+    await dbPool.execute(`UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`, [0, student_id]);
+    return res.status(200).json({ success: false, message: 'Attendance removed successfully!' });
+    }
     await dbPool.execute(`UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`, [1, student_id]);
     return res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
+    return res.status(500).json({ success: false, message: 'Failed to record attendance. Either todays attendence haven\'t been initiated or a database error occurred.' });
   }
 });
 
