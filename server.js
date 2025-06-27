@@ -345,7 +345,7 @@ app.post('/api/attendance/start', async (req, res) => {
 });
 
 app.post('/api/submit_id', async (req, res) => {
-  const { studentId } = req.body;
+  const { studentId} = req.body;
   if (!req.cookies || !req.cookies.remember_me_token) return res.status(401).json({ success: false, message: 'Not authenticated.' });
   const [selector, validator] = req.cookies.remember_me_token.split(':');
   if (!selector || !validator) return res.status(401).json({ success: false, message: 'Invalid token.' });
