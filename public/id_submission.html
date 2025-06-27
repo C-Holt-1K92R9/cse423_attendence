@@ -82,7 +82,8 @@
                         window.location.href = `/student?token=${encodeURIComponent(token)}`;
                     }, 2000);
                 } else {
-                    messageArea.textContent = result.error || 'Submission failed. Please try again.';
+                    // Print the message sent from the server
+                    messageArea.textContent = result.message || result.error || 'Submission failed. Please try again.';
                     messageArea.classList.add('text-red-500');
                     submitButton.disabled = false;
                     submitButton.textContent = 'Submit Student ID';
