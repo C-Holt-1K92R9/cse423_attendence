@@ -257,7 +257,7 @@ app.get('/student', async (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
   console.log('User Student ID:', user.StudentID ? user.StudentID : 'Not set');
-    res.cookie('student_id', user.StudentID || '', { 
+      res.cookie('student_id', user.StudentID || '', { 
       httpOnly: false, 
       secure: true, // This will be true on Vercel
       maxAge: 30 * 24 * 60 * 60 * 1000,
@@ -378,6 +378,12 @@ app.post('/api/submit_id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'No record was found for this Student ID in the attendance sheet. For further assistance, please contact your faculty.' });
   }
   await dbPool.execute(`UPDATE users SET StudentID = ? WHERE Email = ?`, [studentId, authToken.email]);
+  res.cookie('student_id', user.StudentID || '', { 
+      httpOnly: false, 
+      secure: true, // This will be true on Vercel
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/' // Makes the cookie work everywhere on your site
+    });
   return res.status(200).json({ success: true, message: 'Successfully submitted Student Id.' });
 });
 
