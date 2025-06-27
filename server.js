@@ -198,14 +198,16 @@ app.get('/auth/google/callback',
       secure: true, // This will be true on Vercel
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
-      res.redirect('/');
+      
+      return res.redirect('/');
+
     } catch (err) {
-      res.redirect('/?error=auth_failed');
+      return res.redirect('/?error=auth_failed');
     }
   }
 );
 app.get('/manual', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'manual.html')); 
+  return res.sendFile(path.join(__dirname, 'public', 'manual.html')); 
 });
 app.get('/', async (req, res) => {
   if (req.query && req.query.token) {
@@ -232,7 +234,7 @@ app.get('/api/logout', async (req, res) => {
       const [selector] = req.cookies.remember_me_token.split(':');
       if (selector) await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
     }
-    res.redirect('/');
+    return res.redirect('/');
   });
 });
 
@@ -242,7 +244,7 @@ app.get('/admin/dashboard', async (req, res) => {
     clearAuthCookies(res);
     return res.redirect('/');
   }
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  return res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 app.get('/student', async (req, res) => {
@@ -255,12 +257,7 @@ app.get('/student', async (req, res) => {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
   console.log('User Student ID:', user.StudentID ? user.StudentID : 'Not set');
-  res.cookie('student_id', user.StudentID || '', { 
-  httpOnly: false, 
-  secure: true, // This will be true on Vercel
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-  path: '/' // Makes the cookie work everywhere on your site
-});
+
   return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
 
