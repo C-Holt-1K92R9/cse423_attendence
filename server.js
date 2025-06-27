@@ -198,7 +198,12 @@ app.get('/auth/google/callback',
       secure: true, // This will be true on Vercel
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
-      
+        res.cookie('student_id', user.StudentID || '', { 
+  httpOnly: false, 
+  secure: true, // This will be true on Vercel
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+  path: '/' // Makes the cookie work everywhere on your site
+});
       return res.redirect('/');
 
     } catch (err) {
@@ -230,6 +235,10 @@ app.get('/', async (req, res) => {
 app.get('/api/logout', async (req, res) => {
   req.session.destroy(async err => {
     clearAuthCookies(res);
+    if (req.cookies && req.cookies.remember_me_token) {
+      const [selector] = req.cookies.remember_me_token.split(':');
+      if (selector) await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+    }
     return res.redirect('/');
   });
 });
