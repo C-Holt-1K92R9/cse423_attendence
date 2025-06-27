@@ -159,7 +159,7 @@ const ipWhitelistMiddleware = async (req, res, next) => {
       });
     }).on('error', err => {
       console.error('Error fetching ISP info:', err.message);
-      return res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
+      return res.status(403).json({ success: false, message: 'Access denied: Unable to verify your network provider. Please contact your administrator if you believe this is an error.' });
     });
   } catch (error) {
     res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
@@ -254,7 +254,7 @@ app.get('/student', async (req, res) => {
  if (!user.StudentID) {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
-  console.log('User Student ID:', user.StudentID);
+  console.log('User Student ID:', user.StudentID ? user.StudentID : 'Not set');
   res.cookie('student_id', user.StudentID || '', { 
   httpOnly: false, 
   secure: true, // This will be true on Vercel
