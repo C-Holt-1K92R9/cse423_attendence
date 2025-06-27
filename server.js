@@ -151,7 +151,7 @@ const ipWhitelistMiddleware = async (req, res, next) => {
           if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
             return next();
           } else {
-            return res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized ISP.' });
+            return res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized network.' });
           }
         } catch (parseErr) {
           return res.status(403).json({ success: false, message: 'Access denied: Unable to verify ISP.' });
@@ -388,7 +388,18 @@ app.post('/api/submit_id', async (req, res) => {
     });
   return res.status(200).json({ success: true, message: 'Successfully submitted Student Id.' });
 });
-
+app.post('/api/attendance/manual', async (req, res) => {
+  const { student_id } = req.body;
+  if (!student_id) return res.status(400).json({ success: false, message: 'Student ID is required.' });
+  try {
+    const [rows] = await dbPool.execute(`SELECT * FROM records WHERE StudentID = ?`, [student_id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'No record found for this Student ID.' });
+    await dbPool.execute(`UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`, [1, student_id]);
+    return res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
+  }
+});
 // --- 404 Handler ---
 app.use((req, res) => {
   res.status(404).send(`
