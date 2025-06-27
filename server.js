@@ -198,12 +198,7 @@ app.get('/auth/google/callback',
       secure: true, // This will be true on Vercel
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
-        res.cookie('student_id', user.StudentID || '', { 
-  httpOnly: false, 
-  secure: true, // This will be true on Vercel
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-  path: '/' // Makes the cookie work everywhere on your site
-});
+      
       return res.redirect('/');
 
     } catch (err) {
