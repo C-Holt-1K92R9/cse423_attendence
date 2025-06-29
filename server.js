@@ -123,9 +123,10 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // --- IP Whitelist Middleware ---
-const ALLOWED_IP = process.env.ALLOWED_IP;
+let requestIp;
+let isp = null;
 const ipWhitelistMiddleware = async (req, res, next) => {
-  let requestIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  requestIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   if (requestIp && requestIp.includes(',')) requestIp = requestIp.split(',')[0].trim();
   if (requestIp && requestIp.startsWith('::ffff:')) requestIp = requestIp.replace('::ffff:', '');
   console.log('Request IP:', requestIp);
@@ -139,7 +140,7 @@ const ipWhitelistMiddleware = async (req, res, next) => {
       res2.on('end', () => {
         try {
           const info = JSON.parse(data2);
-          let isp = null;
+          
           if (info.org) {
             // org is usually like "AS15169 Google LLC"
             isp = info.org.split(' ').slice(1).join(' ');
@@ -148,7 +149,7 @@ const ipWhitelistMiddleware = async (req, res, next) => {
           } else {
             console.log('IP Address:', requestIp);
             console.log('ISP info not found.');
-          }
+          } 
           if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
             return next();
           } else {
@@ -284,6 +285,7 @@ app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production'
     });
+    await dbPool.execute('INSERT INTO student_responses (StudentID, ip, isp) VALUES (?, ?, ?)', [studentId, requestIp, isp]);
     res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
@@ -356,6 +358,7 @@ app.post('/api/attendance/start', async (req, res) => {
     if (columns.length === 0) {
       console.log(`Adding new column: ${new_column}`);
       await dbPool.execute(`ALTER TABLE records ADD COLUMN \`${new_column}\` TINYINT DEFAULT 0`);
+      await dbPool.execute(`INSERT INTO history history_dates	= ?`, [new_column]);
     }
     const url = `https://attain423.vercel.app/?token=${randomString}`;
     const qrCodeDataURL = await QRCode.toDataURL(url);
