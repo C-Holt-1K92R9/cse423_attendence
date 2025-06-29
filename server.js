@@ -48,6 +48,8 @@ const clearAuthCookies = (res) => {
   res.clearCookie('photo_url', { path: '/' });
   res.clearCookie('student_id', { path: '/' });
   res.clearCookie('token', { path: '/' });
+  res.clearCookie('attended', { path: '/' });
+  res.clearCookie('session', { path: '/' });
 };
 
 const getRememberMeUser = async (cookies) => {
