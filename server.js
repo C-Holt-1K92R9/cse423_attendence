@@ -289,7 +289,7 @@ app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production'
     });
-    await dbPool.execute('INSERT INTO student_responses (StudentID, ip, isp) VALUES (?, ?, ?)', [studentId, requestIp, isp]);
+    await dbPool.execute('INSERT INTO student_response (StudentID, ip, isp) VALUES (?, ?, ?)', [studentId, requestIp, isp]);
     res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
