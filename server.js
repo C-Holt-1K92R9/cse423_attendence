@@ -150,9 +150,11 @@ const ipWhitelistMiddleware = async (req, res, next) => {
             console.log('IP Address:', requestIp);
             console.log('ISP info not found.');
           } 
-          if (isp && isp.toLowerCase().includes(process.env.ALLOWED_ISP_NAME.toLowerCase())) {
+          const allowedIsp = "SAM ONLINE";//process.env.ALLOWED_ISP_NAME;
+          if (isp && isp.toLowerCase().includes(allowedIsp.toLowerCase())) {
             return next();
-          } else {
+          } 
+          else {
             return res.status(403).json({ success: false, message: 'Access denied: This action can only be performed from an authorized network.' });
           }
         } catch (parseErr) {
