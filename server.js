@@ -130,10 +130,10 @@ const ipWhitelistMiddleware = async (req, res, next) => {
   requestIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   if (requestIp && requestIp.includes(',')) requestIp = requestIp.split(',')[0].trim();
   if (requestIp && requestIp.startsWith('::ffff:')) requestIp = requestIp.replace('::ffff:', '');
-  console.log('Request IP:', requestIp);
+
   try {
     const https = require('https');
-    console.log('Fetching ISP info for IP:', requestIp);
+
     // Use ipinfo.io to get ISP info
     https.get(`https://ipinfo.io/${requestIp}/json`, (res2) => {
       let data2 = '';
@@ -267,7 +267,7 @@ app.get('/student', async (req, res) => {
  if (!user.StudentID) {
     return res.sendFile(path.join(__dirname, 'public', 'id_submission.html'));
   }
-  console.log('User Student ID:', user.StudentID ? user.StudentID : 'Not set');
+  
   
   return res.sendFile(path.join(__dirname, 'public', 'student.html'));
 });
@@ -359,7 +359,7 @@ app.post('/api/attendance/start', async (req, res) => {
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'records' AND COLUMN_NAME = ?
     `, [process.env.DB_DATABASE, new_column]);
     if (columns.length === 0) {
-      console.log(`Adding new column: ${new_column}`);
+      
       await dbPool.execute(`ALTER TABLE records ADD COLUMN \`${new_column}\` TINYINT DEFAULT 0`);
       const [historyRows] = await dbPool.execute(`SELECT * FROM history WHERE history_dates = ?`, [new_column]);
       if (historyRows.length === 0){
@@ -376,7 +376,6 @@ app.post('/api/attendance/start', async (req, res) => {
 
 app.post('/api/submit_id', async (req, res) => {
   const {studentId} = req.body;
-  console.log('Received Student ID:', studentId);
   if (!req.cookies || !req.cookies.remember_me_token) return res.status(401).json({ success: false, message: 'Not authenticated.' });
   const [selector, validator] = req.cookies.remember_me_token.split(':');
   if (!selector || !validator) return res.status(401).json({ success: false, message: 'Invalid token.' });
