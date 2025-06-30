@@ -361,10 +361,8 @@ app.post('/api/attendance/start', async (req, res) => {
     if (columns.length === 0) {
       
       await dbPool.execute(`ALTER TABLE records ADD COLUMN \`${new_column}\` TINYINT DEFAULT 0`);
-      const [historyRows] = await dbPool.execute(`SELECT * FROM history WHERE history_dates = ?`, [new_column]);
-      if (historyRows.length === 0){
-      await dbPool.execute(`INSERT INTO history history_dates	= ?`, [new_column]);
-      }
+      await dbPool.execute(`INSERT IGNORE INTO history (history_dates) VALUES (?)`, [new_column]);
+      
     }
     const url = `https://attain423.vercel.app/?token=${randomString}`;
     const qrCodeDataURL = await QRCode.toDataURL(url);
