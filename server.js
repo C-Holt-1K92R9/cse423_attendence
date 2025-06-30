@@ -48,7 +48,6 @@ const clearAuthCookies = (res) => {
   res.clearCookie('photo_url', { path: '/' });
   res.clearCookie('student_id', { path: '/' });
   res.clearCookie('token', { path: '/' });
-  res.clearCookie('attended', { path: '/' });
   res.clearCookie('session', { path: '/' });
 };
 
@@ -152,7 +151,7 @@ const ipWhitelistMiddleware = async (req, res, next) => {
             console.log('IP Address:', requestIp);
             console.log('ISP info not found.');
           } 
-          const allowedIsp = "SAM ONLINE";//process.env.ALLOWED_ISP_NAME;
+          const allowedIsp = process.env.ALLOWED_ISP_NAME;
           if (isp && isp.toLowerCase().includes(allowedIsp.toLowerCase())) {
             return next();
           } 
