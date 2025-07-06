@@ -257,6 +257,11 @@ app.get('/admin/dashboard', async (req, res) => {
   }
   return res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
+app.post('/api/students/reset-id', async (req, res) => {
+  const { email } = req.body;
+  await dbPool.execute('UPDATE users SET StudentID = NULL WHERE Email = ?', [email]);
+  res.status(200).json({ success: true, message: 'Student ID reset successfully.' });
+});
 
 app.get('/student', async (req, res) => {
    const user = await getRememberMeUser(req.cookies);
@@ -275,6 +280,7 @@ app.get('/student', async (req, res) => {
 // --- Attendance API ---
 app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
   const { studentId, token } = req.body;
+  await dbPool.execute('INSERT INTO student_response (StudentID, ip, isp) VALUES (?, ?, ?)', [studentId, requestIp, isp]);
   const [rows] = await dbPool.execute(`SELECT * FROM verification ORDER BY ID DESC LIMIT 1`);
   if (req.cookies.attended) return res.status(401).json({ success: false, message: 'Your device already has an entry' });
   if (rows.length === 0 || !crypto.timingSafeEqual(Buffer.from(rows[0].token, 'utf8'), Buffer.from(token || '', 'utf8'))) {
@@ -288,7 +294,6 @@ app.post('/api/attend', ipWhitelistMiddleware, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production'
     });
-    await dbPool.execute('INSERT INTO student_response (StudentID, ip, isp) VALUES (?, ?, ?)', [studentId, requestIp, isp]);
     res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
@@ -400,18 +405,27 @@ app.post('/api/submit_id', async (req, res) => {
     });
   return res.status(200).json({ success: true, message: 'Successfully submitted Student Id.' });
 });
-app.post('/api/attendance/manual', async (req, res) => {
+app.post('/api/attendance/manual/present', async (req, res) => {
   const { student_id } = req.body;
   if (!student_id) return res.status(400).json({ success: false, message: 'Student ID is required.' });
   try {
     const [rows] = await dbPool.execute(`SELECT * FROM records WHERE StudentID = ?`, [student_id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'No record found for this Student ID.' });
-    if (rows[0][new_column] === 1) {
-    await dbPool.execute(`UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`, [0, student_id]);
-    return res.status(200).json({ success: false, message: 'Attendance removed successfully!' });
-    }
+    if (rows[0][new_column] === 1) return res.status(400).json({ success: false, message: 'Attendance for this student has already been recorded for today.' });
     await dbPool.execute(`UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`, [1, student_id]);
     return res.status(200).json({ success: true, message: 'Attendance recorded successfully!' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to record attendance. Either todays attendence haven\'t been initiated or a database error occurred.' });
+  }
+});
+app.post('/api/attendance/manual/absent', async (req, res) => {
+  const { student_id } = req.body;
+  if (!student_id) return res.status(400).json({ success: false, message: 'Student ID is required.' });
+  try {
+    const [rows] = await dbPool.execute(`SELECT * FROM records WHERE StudentID = ?`, [student_id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'No record found for this Student ID.' });
+    await dbPool.execute(`UPDATE records SET \`${new_column}\` = ? WHERE StudentID = ?`, [0, student_id]);
+    return res.status(200).json({ success: true, message: 'Attendance removed successfully!' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to record attendance. Either todays attendence haven\'t been initiated or a database error occurred.' });
   }

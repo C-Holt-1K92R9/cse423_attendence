@@ -355,17 +355,31 @@
                 </div>
             </div>
             <div class="card">
-                <div class="card-title"><span class="material-icons">fact_check</span>Manual Attendance Record</div>
+                <div class="card-title"><span class="material-icons">fact_check</span>Manual Attendance <span style="color:green;">Present</span></div>
                 <div class="card-content">
-                    Mark (add or remove) attendance for a student manually by entering their ID below.
+                    <span style="color:green;">Mark</span> attendance for a student manually by entering their ID below.
                 </div>
                 <div class="card-action">
                     <form id="manual-attendence" method="POST">
                         <label for="student-id">Student ID:</label>
                         <input type="text" id="student-id" name="student_id" placeholder="e.g. 11223344" required>
-                        <button type="submit" id="manual-btn" class="btn" style="margin-top:0.8rem;">Mark Attendance</button>
+                        <button type="submit" id="manual-btn" class="btn" style="margin-top:0.8rem;">Mark Present</button>
                     </form>
                     <p id="manual-attendance-message" style="margin-top:0.8rem;color:#2563eb;font-weight:600;"></p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span class="material-icons">fact_check</span>Manual Attendance <span style="color:red;">Absent</span></div>
+                <div class="card-content">
+                    <span style="color:red;">Remove</span> attendance for a student manually by entering their ID below.
+                </div>
+                <div class="card-action">
+                    <form id="manual-attendence-2" method="POST">
+                        <label for="student-id-2">Student ID:</label>
+                        <input type="text" id="student-id-2" name="student_id" placeholder="e.g. 11223344" required>
+                        <button type="submit" id="manual-btn-2" class="btn" style="margin-top:0.8rem;">Mark Absent</button>
+                    </form>
+                    <p id="manual-attendance-message-2" style="margin-top:0.8rem;font-weight:600;"></p>
                 </div>
             </div>
             <div class="card">
@@ -399,6 +413,21 @@
                         </select>
                         <button type="submit" class="btn">Generate Reports</button>
                     </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="material-icons">restart_alt</span>Reset Student ID</div>
+                <div class="card-content">
+                    <span style="color:green;">Reset</span> students' id via their email (g-suit) for their account if they somehow submitted the wrong id.
+                </div>
+                <div class="card-action">
+                    <form id="reset-student-id" method="POST">
+                        <label for="student-id">Student ID:</label>
+                        <input type="email" id="reset-email" name="reset-email" placeholder="e.g.someone@your.domain" required>
+                        <button type="submit" id="reset-btn" class="btn" style="margin-top:0.8rem;">Reset</button>
+                    </form>
+                    <p id="student-reset-msg" style="margin-top:0.8rem;font-weight:600;"></p>
                 </div>
             </div>
         </div>
@@ -483,14 +512,35 @@
                 headers: { 'Content-Type': 'application/json' }
             });
         });
-
+        // Reset Student ID
+        document.getElementById('reset-student-id').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('reset-email').value.trim();
+            const btn = document.getElementById('reset-btn');
+            btn.innerHTML = "Submitting...";
+            const response = await fetch('/api/students/reset-id', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            });
+            const data = await response.json();
+            const messageElem = document.getElementById('student-reset-msg');
+            messageElem.textContent = data.message || 'No response from server.';
+            messageElem.style.color = data.success ? '#22c55e' : '#ef4444';
+            setTimeout(() => {
+                messageElem.textContent = '';
+                messageElem.style.color = '#2563eb';
+                document.getElementById('reset-email').value = '';
+            }, 3000);
+            btn.innerHTML = "Reset";
+        });
         // Manual Attendance
         document.getElementById('manual-attendence').addEventListener('submit', async function(e) {
             e.preventDefault();
             const studentId = document.getElementById('student-id').value.trim();
             const btn = document.getElementById('manual-btn');
             btn.innerHTML = "Submitting...";
-            const manual_response = await fetch('/api/attendance/manual', {
+            const manual_response = await fetch('/api/attendance/manual/present', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ student_id: studentId })
@@ -503,7 +553,28 @@
                 messageElem.textContent = '';
                 messageElem.style.color = '#2563eb';
                 document.getElementById('student-id').value = '';
-            }, 5000);
+            }, 3000);
+            btn.innerHTML = "Mark Attendance";
+        });
+        document.getElementById('manual-attendence-2').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const studentId = document.getElementById('student-id-2').value.trim();
+            const btn = document.getElementById('manual-btn-2');
+            btn.innerHTML = "Submitting...";
+            const manual_response = await fetch('/api/attendance/manual/absent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: studentId })
+            });
+            const manual_data = await manual_response.json();
+            const messageElem = document.getElementById('manual-attendance-message-2');
+            messageElem.textContent = manual_data.message || 'No response from server.';
+            messageElem.style.color = manual_data.success ? '#22c55e' : '#ef4444';
+            setTimeout(() => {
+                messageElem.textContent = '';
+                messageElem.style.color = '#2563eb';
+                document.getElementById('student-id').value = '';
+            }, 3000);
             btn.innerHTML = "Mark Attendance";
         });
 

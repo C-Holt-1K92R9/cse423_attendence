@@ -39,7 +39,9 @@
         <h2>Notice Board</h2>
         <h3>New features will come soon. Any new update will loged in this notice board.</h3>
         <ul>
-            
+            <li>Splited the function to mark attendence manually for the students for better understanding the feature. </li>
+            <br>
+            <li>Added a funtion to reset the student id for the student, if they somehow entered wrong student ID while registering the account.</li>
         </ul>
     </section>
     <section>
@@ -49,7 +51,9 @@
             <strong>Take Attendance:</strong> When the "Start Attendance" button is pressed, a new column is created in the database for that day. Simultaneously, a QR code containing a verification token is generated. Students must scan this QR code to mark their attendance. Once the QR code is closed, no further attendance submissions will be accepted for that session.
             </li><br>
             <li>
-            <strong>Manual Attendance Record:</strong> Faculty members can manually mark or update a student's attendance at any time during the day. If an error is made, it can be corrected by re-entering the student's ID through the same process.
+            <strong>Manual Attendance Present:</strong> Faculty member can manually mark attendance for students who are unable to scan the QR code but are present in the class. This is done by entering the student's ID and clicking "Mark Attendance". The system will validate the ID and update the attendance record accordingly.
+            </li><br>
+            <li><strong>Manual Attendanceb Absent:</strong> While marking a students attendece, if a wrong StudentID is enter (for another student, who is not present), it can be undone using the the mark abset attendance card.<br>
             </li><br>
             <li>
             <strong>Add Student:</strong> Faculty members can add students to the database individually or in bulk by uploading a CSV file. <br>
@@ -58,6 +62,7 @@
             <li>
             <strong>Reports:</strong> Faculty members can download attendance history by section as a CSV file. Select the desired section and click "Generate Report" to obtain the data.
             </li><br>
+
         </ul>
     </section>
     <section>
