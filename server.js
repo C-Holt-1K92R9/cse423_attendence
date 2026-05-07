@@ -98,11 +98,6 @@ app.get('/api/health', async (req, res) => {
   res.status(statusCode).json(health);
 });
 
-// 404 and error handlers before other routes
-app.use((req, res, next) => {
-  res.status(404).json({ success: false, message: 'Route not found', path: req.path });
-});
-
 // --- Helper Functions ---
 const clearAuthCookies = (res) => {
   res.clearCookie('remember_me_token', { path: '/' });
