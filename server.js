@@ -48,13 +48,21 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(fileUpload());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Session configuration
+const sessionSecret = process.env.SESSION_SECRET || 'development-secret-key-change-in-production';
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  console.warn('WARNING: SESSION_SECRET not set in production. Using default key. Please set SESSION_SECRET environment variable on Vercel!');
+}
+
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: sessionSecret,
   store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
@@ -288,6 +296,7 @@ app.get('/manual', (req, res) => {
 
 
 app.get('/', async (req, res) => {
+  console.log('Root route accessed');
   try {
     if (req.query && req.query.token) {
       res.cookie('token', req.query.token, {
@@ -299,7 +308,10 @@ app.get('/', async (req, res) => {
     }
     
     // Check if user has active session
+
+    console.log('Session user ID:', req.session.user);
     if (req.session && req.session.user) {
+      
       const [userRows] = await dbPool.execute('SELECT type FROM users WHERE id = ?', [req.session.user]);
       if (userRows.length > 0) {
         return userRows[0].type === 0 ? res.redirect('/student') : res.redirect('/admin/dashboard');
