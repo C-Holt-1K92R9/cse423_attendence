@@ -49,6 +49,12 @@
         </div>
 
         <div id="messageArea" class="mt-4 text-center font-medium"></div>
+
+        <div class="mt-6 text-center">
+            <p class="text-gray-600 text-sm">Don't have an account? 
+                <a href="/register" class="text-blue-500 hover:text-blue-700 font-semibold">Create one</a>
+            </p>
+        </div>
     </div>
 
     <script>
@@ -83,8 +89,10 @@
                 });
 
                 if (response.ok) {
-                    // Redirect to the admin dashboard after successful login
-                    window.location.href = '/admin/dashboard';
+                    const result = await response.json();
+                    // Redirect based on user type returned from server
+                    const redirectUrl = result.type === 0 ? '/student' : '/admin/dashboard';
+                    window.location.href = redirectUrl;
                 } else {
                     const result = await response.json();
                     messageArea.textContent = result.message;

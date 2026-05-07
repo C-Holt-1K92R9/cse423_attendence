@@ -16,18 +16,18 @@ const fileUpload = require('express-fileupload');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const dbPool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  port: process.env.DB_PORT,
-  ssl: { ca: process.env.DB_SSL_CA }
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'attendance',
+  port: process.env.DB_PORT || 3306
 });
 const sessionStore = new MySQLStore({}, dbPool);
 
 app.use(cookieParser());
 app.use(express.json());
 app.use(fileUpload());
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: process.env.SESSION_SECRET,
   store: sessionStore,
@@ -52,25 +52,30 @@ const clearAuthCookies = (res) => {
 };
 
 const getRememberMeUser = async (cookies) => {
-  if (!cookies || !cookies.remember_me_token) return null;
-  const [selector, validator] = cookies.remember_me_token.split(':');
-  if (!selector || !validator) return null;
-  const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
-  if (tokenRows.length === 0) return null;
-  const authToken = tokenRows[0];
-  // Check expiry using Asia/Dhaka timezone
-  const nowDhaka = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
-  if (new Date(authToken.expires) < nowDhaka) {
-    await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+  try {
+    if (!cookies || !cookies.remember_me_token) return null;
+    const [selector, validator] = cookies.remember_me_token.split(':');
+    if (!selector || !validator) return null;
+    const [tokenRows] = await dbPool.execute('SELECT * FROM auth_tokens WHERE selector = ?', [selector]);
+    if (tokenRows.length === 0) return null;
+    const authToken = tokenRows[0];
+    // Check expiry using Asia/Dhaka timezone
+    const nowDhaka = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
+    if (new Date(authToken.expires) < nowDhaka) {
+      await dbPool.execute('DELETE FROM auth_tokens WHERE selector = ?', [selector]);
+      return null;
+    }
+    const match = await bcrypt.compare(validator, authToken.hashed_validator);
+    if (!match) return null;
+    // Explicitly select all columns from users table
+    const [userRows] = await dbPool.execute('SELECT * FROM users WHERE Email = ?', [authToken.email]);
+    if (userRows.length === 0) return null;
+    // Return the full user object
+    return userRows[0];
+  } catch (error) {
+    console.error('Error in getRememberMeUser:', error);
     return null;
   }
-  const match = await bcrypt.compare(validator, authToken.hashed_validator);
-  if (!match) return null;
-  // Explicitly select all columns from users table
-  const [userRows] = await dbPool.execute('SELECT * FROM users WHERE Email = ?', [authToken.email]);
-  if (userRows.length === 0) return null;
-  // Return the full user object
-  return userRows[0];
 };
 
 const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
@@ -192,27 +197,33 @@ app.get('/auth/google/callback',
         await dbPool.execute("INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)", [selector, hashedValidator, user.Email, expires]);
       }
       res.cookie('photo_url', user.Photo_url || '', { httpOnly: false, 
-      secure: true, // This will be true on Vercel
+      secure: true,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
       res.cookie('remember_me_token', `${selector}:${validator}`, { httpOnly: false, 
-      secure: true, // This will be true on Vercel
+      secure: true,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
       res.cookie('name', user.Name ? user.Name.split(' ')[0] : '', { httpOnly: false, 
-      secure: true, // This will be true on Vercel
+      secure: true,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/' });
-          res.cookie('student_id', user.StudentID || '', { 
-          httpOnly: false, 
-          secure: true, // This will be true on Vercel
-          maxAge: 30 * 24 * 60 * 60 * 1000,
-          path: '/' // Makes the cookie work everywhere on your site
-        });
+      res.cookie('student_id', user.StudentID || '', { 
+      httpOnly: false, 
+      secure: true,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/'
+      });
+      
+      // Set session variables
+      req.session.email = user.Email;
+      req.session.name = user.Name;
+      req.session.user = user.id;
             
-      return res.redirect('/');
+      return res.redirect(user.type === 0 ? '/student' : '/admin/dashboard');
 
     } catch (err) {
+      console.error('Google auth error:', err);
       return res.redirect('/?error=auth_failed');
     }
   }
@@ -220,22 +231,118 @@ app.get('/auth/google/callback',
 app.get('/manual', (req, res) => {
   return res.sendFile(path.join(__dirname, 'public', 'manual.html')); 
 });
-app.get('/', async (req, res) => {
-  if (req.query && req.query.token) {
-    res.cookie('token', req.query.token, {
-      httpOnly: false, 
-      secure: true, // This will be true on Vercel
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: '/'
-    });
-  }
-  const user = await getRememberMeUser(req.cookies);
-  if (!user) return res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  req.session.email = user.Email;
-  req.session.name = user.Name;
-  req.session.user = user.id;
 
-  return user.type === 0 ? res.redirect('/student') : res.redirect('/admin/dashboard');
+
+app.get('/', async (req, res) => {
+  try {
+    if (req.query && req.query.token) {
+      res.cookie('token', req.query.token, {
+        httpOnly: false, 
+        secure: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+    }
+    
+    // Check if user has active session
+    if (req.session && req.session.user) {
+      const [userRows] = await dbPool.execute('SELECT type FROM users WHERE id = ?', [req.session.user]);
+      if (userRows.length > 0) {
+        return userRows[0].type === 0 ? res.redirect('/student') : res.redirect('/admin/dashboard');
+      }
+    }
+    
+    // Check for remember me cookie
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    
+    req.session.email = user.Email;
+    req.session.name = user.Name;
+    req.session.user = user.id;
+
+    return user.type === 0 ? res.redirect('/student') : res.redirect('/admin/dashboard');
+  } catch (error) {
+    console.error('Root route error:', error);
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+});
+
+app.get('/register', (req, res) => {
+  return res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
+
+app.get('/profile', async (req, res) => {
+  const user = await getRememberMeUser(req.cookies);
+  if (!user) {
+    clearAuthCookies(res);
+    return res.redirect('/');
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'profile.html'));
+});
+
+app.get('/api/profile', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    res.json({
+      id: user.id,
+      Name: user.Name,
+      Email: user.Email,
+      StudentID: user.StudentID || null,
+      type: user.type,
+      Photo_url: user.Photo_url
+    });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ success: false, message: 'Error fetching profile' });
+  }
+});
+
+app.post('/api/profile/update', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { fullname, currentPassword, newPassword } = req.body;
+
+    // Validation
+    if (!fullname || !fullname.trim()) {
+      return res.status(400).json({ success: false, message: 'Full name is required.' });
+    }
+
+    // If password change is requested, verify current password
+    if (currentPassword && newPassword) {
+      const [userRows] = await dbPool.execute('SELECT Password FROM users WHERE id = ?', [user.id]);
+      if (userRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+      }
+
+      const passwordMatch = await bcrypt.compare(currentPassword, userRows[0].Password);
+      if (!passwordMatch) {
+        return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long.' });
+      }
+
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await dbPool.execute('UPDATE users SET Name = ?, Password = ? WHERE id = ?', [fullname.trim(), hashedNewPassword, user.id]);
+    } else {
+      // Just update name
+      await dbPool.execute('UPDATE users SET Name = ? WHERE id = ?', [fullname.trim(), user.id]);
+    }
+
+    res.json({ success: true, message: 'Profile updated successfully.' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ success: false, message: 'Error updating profile.' });
+  }
 });
 
 app.get('/api/logout', async (req, res) => {
@@ -305,29 +412,91 @@ app.post('/api/login', async (req, res) => {
   try {
     const [rows] = await dbPool.execute(`SELECT * FROM users WHERE Email = ?`, [email]);
     if (rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
-    if (password == rows[0].Password) {
-      req.session.email = email;
-      req.session.name = rows[0].Name;
-      req.session.user = 1;
-      if (rememberMe) {
-        const selector = crypto.randomBytes(16).toString('hex');
-        const validator = crypto.randomBytes(32).toString('hex');
-        const hashedValidator = await bcrypt.hash(validator, 10);
-        const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        const [existingTokens] = await dbPool.execute("SELECT * FROM auth_tokens WHERE email = ?", [email]);
-        if (existingTokens.length > 0) {
-          await dbPool.execute("UPDATE auth_tokens SET selector = ?, hashed_validator = ?, expires = ? WHERE email = ?", [selector, hashedValidator, expires, email]);
-        } else {
-          await dbPool.execute("INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)", [selector, hashedValidator, email, expires]);
-        }
-        res.cookie('remember_me_token', `${selector}:${validator}`, { httpOnly: true, secure: true, expires });
-      }
-      res.status(200).json({ success: true, message: 'Login successful' });
-    } else {
-      res.status(401).json({ success: false, message: 'Invalid email or password.' });
+    
+    // Use bcrypt.compare for password verification
+    const passwordMatch = await bcrypt.compare(password, rows[0].Password);
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
+    
+    req.session.email = email;
+    req.session.name = rows[0].Name;
+    req.session.user = rows[0].id;
+    
+    if (rememberMe) {
+      const selector = crypto.randomBytes(16).toString('hex');
+      const validator = crypto.randomBytes(32).toString('hex');
+      const hashedValidator = await bcrypt.hash(validator, 10);
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const [existingTokens] = await dbPool.execute("SELECT * FROM auth_tokens WHERE email = ?", [email]);
+      if (existingTokens.length > 0) {
+        await dbPool.execute("UPDATE auth_tokens SET selector = ?, hashed_validator = ?, expires = ? WHERE email = ?", [selector, hashedValidator, expires, email]);
+      } else {
+        await dbPool.execute("INSERT INTO auth_tokens (selector, hashed_validator, email, expires) VALUES (?, ?, ?, ?)", [selector, hashedValidator, email, expires]);
+      }
+      res.cookie('remember_me_token', `${selector}:${validator}`, { httpOnly: true, secure: true, expires });
+    }
+    res.status(200).json({ success: true, message: 'Login successful', type: rows[0].type });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ success: false, message: 'A database error occurred.' });
+  }
+});
+
+app.post('/api/register', async (req, res) => {
+  const { fullname, email, student_id, password } = req.body;
+  try {
+    // Validation
+    if (!fullname || !email || !password) {
+      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long.' });
+    }
+
+    // Check if email already exists
+    const [existingEmailUsers] = await dbPool.execute(`SELECT * FROM users WHERE Email = ?`, [email]);
+    if (existingEmailUsers.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email already registered.' });
+    }
+
+    // Check if student ID already exists (only for student domain)
+    if (student_id) {
+      const [existingStudentIds] = await dbPool.execute(`SELECT * FROM users WHERE StudentID = ?`, [student_id]);
+      if (existingStudentIds.length > 0) {
+        return res.status(400).json({ success: false, message: 'Student ID already registered.' });
+      }
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert new user based on email domain
+    const domain = email.split('@')[1];
+    if (domain === 'g.bracu.ac.bd') {
+      // Student domain - requires StudentID
+      if (!student_id) {
+        return res.status(400).json({ success: false, message: 'Student ID is required for student accounts.' });
+      }
+      await dbPool.execute(
+        `INSERT INTO users (Email, Password, Name, StudentID, type) VALUES (?, ?, ?, ?, ?)`,
+        [email, hashedPassword, fullname, student_id, 0]
+      );
+    } else if (domain === 'bracu.ac.bd') {
+      // Faculty domain - no StudentID required
+      await dbPool.execute(
+        `INSERT INTO users (Email, Password, Name, type) VALUES (?, ?, ?, ?)`,
+        [email, hashedPassword, fullname, 1]
+      );
+    } else {
+      return res.status(400).json({ success: false, message: 'Only @bracu.ac.bd and @g.bracu.ac.bd emails are allowed.' });
+    }
+
+    res.status(201).json({ success: true, message: 'Account created successfully.' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ success: false, message: 'A database error occurred during registration.' });
   }
 });
 
