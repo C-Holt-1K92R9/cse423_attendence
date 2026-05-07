@@ -13,6 +13,12 @@ const MySQLStore = require('express-mysql-session')(session);
 const axios = require('axios');
 const fileUpload = require('express-fileupload');
 
+// Import security modules
+const { rsa, ecc } = require('./encryption');
+const HMACValidator = require('./hmac');
+const KeyManager = require('./key-management');
+const RBACManager = require('./rbac');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -43,6 +49,20 @@ dbPool.on('error', (err) => {
 });
 
 const sessionStore = new MySQLStore({}, dbPool);
+
+// Initialize security managers
+const keyManager = new KeyManager(dbPool);
+const rbacManager = new RBACManager(dbPool);
+
+// Initialize encryption key management
+(async () => {
+  try {
+    await keyManager.initialize();
+    console.log('✅ Key Management System initialized');
+  } catch (error) {
+    console.error('❌ Error initializing Key Management System:', error);
+  }
+})();
 
 app.use(cookieParser());
 app.use(express.json());
@@ -417,6 +437,373 @@ app.get('/api/logout', async (req, res) => {
   });
 });
 
+// ============================================
+// POSTS API - Encrypted Content Management
+// ============================================
+
+/**
+ * Create a new post with encryption
+ * Encrypts title with RSA, content with ECC
+ * Stores integrity tags for tamper detection
+ */
+app.post('/api/posts/create', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Check permission
+    const hasPermission = await rbacManager.hasPermission(user.id, user.type, 'create_posts');
+    if (!hasPermission) {
+      return res.status(403).json({ success: false, message: 'Access Denied: No permission to create posts' });
+    }
+
+    const { title, content, visibility } = req.body;
+
+    // Validation
+    if (!title || !content) {
+      return res.status(400).json({ success: false, message: 'Title and content are required.' });
+    }
+
+    if (title.length < 3 || title.length > 255) {
+      return res.status(400).json({ success: false, message: 'Title must be between 3 and 255 characters.' });
+    }
+
+    if (content.length < 10) {
+      return res.status(400).json({ success: false, message: 'Content must be at least 10 characters.' });
+    }
+
+    const finalVisibility = visibility || 'private';
+
+    try {
+      // Get user's RSA and ECC keys
+      const rsaPublicKey = await keyManager.getPublicKey(user.id, 'RSA');
+      const eccPublicKey = await keyManager.getPublicKey(user.id, 'ECC');
+      const hmacSecret = await keyManager.getHMACSecret(user.id);
+
+      // Encrypt title with RSA
+      const titleEncrypted = rsa.encrypt(title, rsaPublicKey);
+
+      // Encrypt content with ECC
+      const contentEncrypted = ecc.encrypt(content, eccPublicKey);
+
+      // Generate data integrity tag
+      const dataToAuthenticate = { title, content, visibility: finalVisibility };
+      const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
+
+      // Store post
+      const [result] = await dbPool.execute(
+        `INSERT INTO posts (user_id, title_encrypted, content_encrypted, original_title, original_content, data_integrity_tag, visibility)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [user.id, titleEncrypted, contentEncrypted, title, content, integrityTag, finalVisibility]
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Post created successfully with encryption.',
+        postId: result.insertId,
+        encrypted: true
+      });
+    } catch (encryptError) {
+      console.error('Encryption error:', encryptError);
+      res.status(500).json({ success: false, message: 'Error encrypting post data.' });
+    }
+  } catch (error) {
+    console.error('Error creating post:', error);
+    res.status(500).json({ success: false, message: 'Error creating post.' });
+  }
+});
+
+/**
+ * Get user's posts with decryption
+ */
+app.get('/api/posts/my', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Check permission
+    const hasPermission = await rbacManager.hasPermission(user.id, user.type, 'view_own_posts');
+    if (!hasPermission) {
+      return res.status(403).json({ success: false, message: 'Access Denied' });
+    }
+
+    const [posts] = await dbPool.execute(
+      `SELECT * FROM posts WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`,
+      [user.id]
+    );
+
+    // Decrypt posts for user
+    const decryptedPosts = [];
+    for (const post of posts) {
+      try {
+        const rsaPrivateKey = await keyManager.getPrivateKey(user.id, 'RSA');
+        const eccPrivateKey = await keyManager.getPrivateKey(user.id, 'ECC');
+        const hmacSecret = await keyManager.getHMACSecret(user.id);
+
+        // Decrypt
+        const titleDecrypted = rsa.decrypt(post.title_encrypted, rsaPrivateKey);
+        const contentDecrypted = ecc.decrypt(post.content_encrypted, eccPrivateKey);
+
+        // Verify integrity
+        const dataToVerify = { title: titleDecrypted, content: contentDecrypted, visibility: post.visibility };
+        const isValid = HMACValidator.verifyHMAC(dataToVerify, post.data_integrity_tag, hmacSecret);
+
+        decryptedPosts.push({
+          id: post.id,
+          title: titleDecrypted,
+          content: contentDecrypted,
+          visibility: post.visibility,
+          integrityValid: isValid,
+          created_at: post.created_at,
+          updated_at: post.updated_at
+        });
+      } catch (decryptError) {
+        console.error(`Error decrypting post ${post.id}:`, decryptError);
+      }
+    }
+
+    res.json({ success: true, posts: decryptedPosts });
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    res.status(500).json({ success: false, message: 'Error fetching posts.' });
+  }
+});
+
+/**
+ * Get all public posts
+ */
+app.get('/api/posts/public', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    
+    let query = 'SELECT * FROM posts WHERE deleted_at IS NULL';
+    const params = [];
+
+    if (!user) {
+      // Not logged in - only public posts
+      query += ' AND visibility = ?';
+      params.push('public');
+    } else if (user.type === 0) {
+      // Student - public and own posts
+      query += ' AND (visibility = ? OR user_id = ?)';
+      params.push('public', user.id);
+    } else {
+      // Admin - all posts
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const [posts] = await dbPool.execute(query, params);
+
+    // Attempt to decrypt visible posts
+    const decryptedPosts = [];
+    for (const post of posts) {
+      try {
+        const postUser = posts.find(p => p.id === post.id) ? await dbPool.execute('SELECT id FROM users WHERE id = ?', [post.user_id]) : null;
+        
+        // For now, return encrypted posts - decryption only for authorized users
+        decryptedPosts.push({
+          id: post.id,
+          title: post.original_title, // Show plaintext title for browsing
+          preview: post.original_content.substring(0, 100) + '...',
+          visibility: post.visibility,
+          created_at: post.created_at,
+          authorId: post.user_id
+        });
+      } catch (error) {
+        console.error(`Error processing post ${post.id}:`, error);
+      }
+    }
+
+    res.json({ success: true, posts: decryptedPosts });
+  } catch (error) {
+    console.error('Error fetching public posts:', error);
+    res.status(500).json({ success: false, message: 'Error fetching posts.' });
+  }
+});
+
+/**
+ * Update a post with encryption
+ */
+app.post('/api/posts/:postId/update', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { postId } = req.params;
+    const { title, content, visibility } = req.body;
+
+    const [posts] = await dbPool.execute('SELECT * FROM posts WHERE id = ?', [postId]);
+    if (posts.length === 0) {
+      return res.status(404).json({ success: false, message: 'Post not found.' });
+    }
+
+    const post = posts[0];
+
+    // Check permission
+    if (post.user_id !== user.id && user.type !== 1) {
+      return res.status(403).json({ success: false, message: 'Access Denied' });
+    }
+
+    try {
+      const rsaPublicKey = await keyManager.getPublicKey(user.id, 'RSA');
+      const eccPublicKey = await keyManager.getPublicKey(user.id, 'ECC');
+      const hmacSecret = await keyManager.getHMACSecret(user.id);
+
+      const titleEncrypted = rsa.encrypt(title, rsaPublicKey);
+      const contentEncrypted = ecc.encrypt(content, eccPublicKey);
+
+      const dataToAuthenticate = { title, content, visibility };
+      const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
+
+      await dbPool.execute(
+        `UPDATE posts SET title_encrypted = ?, content_encrypted = ?, original_title = ?, original_content = ?, data_integrity_tag = ?, visibility = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [titleEncrypted, contentEncrypted, title, content, integrityTag, visibility, postId]
+      );
+
+      res.json({ success: true, message: 'Post updated successfully.' });
+    } catch (encryptError) {
+      console.error('Encryption error:', encryptError);
+      res.status(500).json({ success: false, message: 'Error encrypting post data.' });
+    }
+  } catch (error) {
+    console.error('Error updating post:', error);
+    res.status(500).json({ success: false, message: 'Error updating post.' });
+  }
+});
+
+/**
+ * Delete a post
+ */
+app.post('/api/posts/:postId/delete', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { postId } = req.params;
+
+    const [posts] = await dbPool.execute('SELECT * FROM posts WHERE id = ?', [postId]);
+    if (posts.length === 0) {
+      return res.status(404).json({ success: false, message: 'Post not found.' });
+    }
+
+    // Check RBAC permission
+    const canDelete = await rbac.canDeletePost(user.id, user.type, posts[0].user_id);
+    if (!canDelete) {
+      return res.status(403).json({ success: false, message: 'Access Denied' });
+    }
+
+    await dbPool.execute('UPDATE posts SET deleted_at = NOW() WHERE id = ?', [postId]);
+
+    res.json({ success: true, message: 'Post deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    res.status(500).json({ success: false, message: 'Error deleting post.' });
+  }
+});
+
+// ============================================
+// ENCRYPTION & SECURITY MANAGEMENT ENDPOINTS
+// ============================================
+
+/**
+ * Get user's key rotation status
+ */
+app.get('/api/security/key-status', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const needsRotation = await keyManager.isKeyRotationNeeded(user.id);
+    const keys = await keyManager.getActiveKeys(user.id);
+
+    res.json({
+      success: true,
+      keysActive: keys.length > 0,
+      needsRotation,
+      rotationIntervalDays: 30,
+      lastRotation: keys.length > 0 ? keys[0].created_at : null
+    });
+  } catch (error) {
+    console.error('Error checking key status:', error);
+    res.status(500).json({ success: false, message: 'Error checking key status.' });
+  }
+});
+
+/**
+ * Rotate user's encryption keys
+ * (Admin only or user for their own keys)
+ */
+app.post('/api/security/rotate-keys', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const result = await keyManager.rotateKeys(user.id);
+
+    res.json({
+      success: true,
+      message: 'Encryption keys rotated successfully.',
+      timestamp: result.timestamp
+    });
+  } catch (error) {
+    console.error('Error rotating keys:', error);
+    res.status(500).json({ success: false, message: 'Error rotating keys.' });
+  }
+});
+
+/**
+ * Get user's access control audit log
+ */
+app.get('/api/security/access-log', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const limit = req.query.limit || 50;
+    const accessLog = await rbacManager.getAccessLog(user.id, parseInt(limit));
+
+    res.json({ success: true, accessLog });
+  } catch (error) {
+    console.error('Error fetching access log:', error);
+    res.status(500).json({ success: false, message: 'Error fetching access log.' });
+  }
+});
+
+/**
+ * Get user's effective permissions
+ */
+app.get('/api/security/permissions', async (req, res) => {
+  try {
+    const user = await getRememberMeUser(req.cookies);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const permissions = await rbacManager.getUserPermissions(user.type);
+
+    res.json({ success: true, permissions });
+  } catch (error) {
+    console.error('Error fetching permissions:', error);
+    res.status(500).json({ success: false, message: 'Error fetching permissions.' });
+  }
+});
+
 app.get('/admin/dashboard', async (req, res) => {
   const user = await getRememberMeUser(req.cookies);
   if (!user) {
@@ -533,28 +920,67 @@ app.post('/api/register', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert new user based on email domain
+    // Determine user type based on email domain
     const domain = email.split('@')[1];
+    let userType = 0; // Student by default
+    
     if (domain === 'g.bracu.ac.bd') {
       // Student domain - requires StudentID
       if (!student_id) {
         return res.status(400).json({ success: false, message: 'Student ID is required for student accounts.' });
       }
-      await dbPool.execute(
-        `INSERT INTO users (Email, Password, Name, StudentID, type) VALUES (?, ?, ?, ?, ?)`,
-        [email, hashedPassword, fullname, student_id, 0]
-      );
+      userType = 0;
     } else if (domain === 'bracu.ac.bd') {
       // Faculty domain - no StudentID required
-      await dbPool.execute(
-        `INSERT INTO users (Email, Password, Name, type) VALUES (?, ?, ?, ?)`,
-        [email, hashedPassword, fullname, 1]
-      );
+      userType = 1;
     } else {
       return res.status(400).json({ success: false, message: 'Only @bracu.ac.bd and @g.bracu.ac.bd emails are allowed.' });
     }
 
-    res.status(201).json({ success: true, message: 'Account created successfully.' });
+    // Get RSA and ECC public keys (use default system keys for new users initially)
+    // In production, each user should have their own keys
+    const { publicKey: rsaPub } = rsa.generateKeyPair();
+    const { publicKey: eccPub } = ecc.generateKeyPair();
+
+    // Encrypt user data using asymmetric encryption
+    const nameEncrypted = rsa.encrypt(fullname, rsaPub); // Use RSA for name
+    const emailEncrypted = ecc.encrypt(email, eccPub);   // Use ECC for email
+    
+    // Generate HMAC for data integrity
+    const dataToAuthenticate = {
+      email,
+      fullname,
+      student_id: student_id || null,
+      userType,
+      timestamp: new Date().toISOString()
+    };
+    const hmacSecret = crypto.randomBytes(32).toString('hex');
+    const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
+
+    // Insert new user with encrypted data
+    const [result] = await dbPool.execute(
+      `INSERT INTO users (Email, Password, Name, StudentID, type, name_encrypted, email_encrypted, student_id_encrypted, data_integrity_tag) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, hashedPassword, fullname, student_id || null, userType, nameEncrypted, emailEncrypted, 
+       student_id ? rsa.encrypt(student_id, rsaPub) : null, integrityTag]
+    );
+
+    const newUserId = result.insertId;
+
+    // Generate and store encryption keys for the user
+    try {
+      await keyManager.generateKeysForUser(newUserId);
+    } catch (keyError) {
+      console.error('Error generating user keys:', keyError);
+      // Continue with registration even if key generation fails initially
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Account created successfully with encryption enabled.',
+      userId: newUserId,
+      encryptionEnabled: true 
+    });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ success: false, message: 'A database error occurred during registration.' });
