@@ -13,39 +13,33 @@ const MySQLStore = require('express-mysql-session')(session);
 const axios = require('axios');
 const fileUpload = require('express-fileupload');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+
 // Validate required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_DATABASE', 'SESSION_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-  console.error('Missing required environment variables:', missingEnvVars.join(', '));
-  if (process.env.NODE_ENV === 'production') {
-    console.error('Please set these variables in your Vercel environment settings');
-    process.exit(1);
-  }
+  console.warn('Missing environment variables:', missingEnvVars.join(', '));
 }
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Create database pool with error handling
+// Create database pool with error handling (non-blocking)
 const dbPool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'attendance',
   port: process.env.DB_PORT || 3306,
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  connectionLimit: 5,
+  queueLimit: 0,
+  enableKeepAlive: true
 });
 
-// Test database connection
-dbPool.getConnection().then(connection => {
-  console.log('Database connected successfully');
-  connection.release();
-}).catch(err => {
-  console.error('Database connection failed:', err.message);
+// Handle database pool errors (non-blocking)
+dbPool.on('error', (err) => {
+  console.error('Database pool error:', err.message);
 });
 
 const sessionStore = new MySQLStore({}, dbPool);
@@ -67,24 +61,38 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is running' });
-});
+// Diagnostic health check endpoint
+app.get('/api/health', async (req, res) => {
+  const health = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  };
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ 
-    success: false, 
-    message: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { error: err.message })
+  // Check environment variables
+  const envCheck = {};
+  requiredEnvVars.forEach(envVar => {
+    envCheck[envVar] = !!process.env[envVar];
   });
+  health.environmentVariables = envCheck;
+
+  // Check database connection
+  try {
+    const connection = await dbPool.getConnection();
+    health.database = { connected: true };
+    connection.release();
+  } catch (err) {
+    health.database = { connected: false, error: err.message };
+    health.status = 'warning';
+  }
+
+  const statusCode = health.status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+// 404 and error handlers before other routes
+app.use((req, res, next) => {
+  res.status(404).json({ success: false, message: 'Route not found', path: req.path });
 });
 
 // --- Helper Functions ---
@@ -751,6 +759,7 @@ app.use((req, res) => {
   `);
 });
 
+// Export app for Vercel
 module.exports = app;
 
 if (require.main === module) {
@@ -761,7 +770,6 @@ if (require.main === module) {
   // Handle server errors
   server.on('error', (err) => {
     console.error('Server error:', err);
-    process.exit(1);
   });
 
   // Graceful shutdown
@@ -773,3 +781,12 @@ if (require.main === module) {
     });
   });
 }
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
