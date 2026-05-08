@@ -1088,7 +1088,8 @@ app.get('/verify-email', (req, res) => {
   `);
 });
 
-
+// Download report endpoint
+app.post('/api/download_report', async (req, res) => {
   const sectionValue = req.body.section;
   try {
     const [rows] = await dbPool.execute(`SELECT * FROM records WHERE Section = ?`, [sectionValue]);
@@ -1105,7 +1106,7 @@ app.get('/verify-email', (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
   }
-
+});
 
 app.post('/api/attendance/stop', async (req, res) => {
   await dbPool.execute("UPDATE verification SET token = NULL WHERE date = ?", [new_column]);
