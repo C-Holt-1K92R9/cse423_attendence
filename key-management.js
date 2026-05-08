@@ -201,8 +201,24 @@ class KeyManager {
       `;
       
       const [results] = await this.db.execute(query, [userId, keyType]);
+      console.log(`[KeyManager] getPublicKey query results for user ${userId}, type ${keyType}:`, {
+        rowCount: results?.length || 0,
+        firstRowKeyPrefix: results?.[0]?.public_key?.substring(0, 50) || 'NO_KEY'
+      });
+      
       if (results && results.length > 0) {
-        return results[0].public_key;
+        const publicKey = results[0].public_key;
+        
+        // Validation
+        if (!publicKey.includes('BEGIN PUBLIC KEY') && !publicKey.includes('BEGIN EC PRIVATE KEY') && !publicKey.includes('BEGIN RSA PRIVATE KEY')) {
+          console.warn(`[KeyManager] WARNING: Retrieved key doesn't look like PEM format for ${keyType}`);
+        }
+        
+        if (publicKey.includes('PRIVATE KEY')) {
+          console.error(`[KeyManager] CRITICAL ERROR: Retrieved PRIVATE KEY instead of public key for user ${userId}, type ${keyType}`);
+        }
+        
+        return publicKey;
       } else {
         throw new Error(`No active ${keyType} key found for user ${userId}`);
       }

@@ -617,6 +617,71 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Debug endpoint to test key generation and retrieval
+app.get('/api/debug/test-keys/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    console.log(`[DEBUG] Testing key retrieval for user ${userId}`);
+    
+    const rsaPublicKey = await keyManager.getPublicKey(userId, 'RSA');
+    const eccPublicKey = await keyManager.getPublicKey(userId, 'ECC');
+    
+    res.json({
+      success: true,
+      userId,
+      rsa: {
+        prefix: rsaPublicKey?.substring(0, 50),
+        length: rsaPublicKey?.length,
+        containsPrivate: rsaPublicKey?.includes('PRIVATE') || false
+      },
+      ecc: {
+        prefix: eccPublicKey?.substring(0, 50),
+        length: eccPublicKey?.length,
+        containsPrivate: eccPublicKey?.includes('PRIVATE') || false
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Debug endpoint to test full encryption cycle
+app.post('/api/debug/test-encrypt', async (req, res) => {
+  try {
+    console.log('[DEBUG] Testing full encryption cycle');
+    
+    // Create a test user in memory
+    const testUserId = 99999;
+    
+    // Generate keys for test
+    await keyManager.generateKeysForUser(testUserId).catch(err => {
+      console.log('[DEBUG] Key generation error (may be expected if user exists):', err.message);
+    });
+    
+    // Retrieve keys
+    const rsaPublicKey = await keyManager.getPublicKey(testUserId, 'RSA');
+    const eccPublicKey = await keyManager.getPublicKey(testUserId, 'ECC');
+    
+    console.log('[DEBUG] Keys retrieved, attempting encryption');
+    
+    // Try encrypting
+    const nameEncrypted = rsa.encrypt('Test Name', rsaPublicKey);
+    console.log('[DEBUG] RSA encryption successful');
+    
+    const emailEncrypted = ecc.encrypt('test@example.com', eccPublicKey);
+    console.log('[DEBUG] ECC encryption successful');
+    
+    res.json({
+      success: true,
+      message: 'Encryption test passed',
+      rsaResult: nameEncrypted.substring(0, 50) + '...',
+      eccResult: emailEncrypted.substring(0, 50) + '...'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 app.post('/api/register', async (req, res) => {
   const { fullname, email, student_id, password } = req.body;
   try {
@@ -688,9 +753,19 @@ app.post('/api/register', async (req, res) => {
       const eccPublicKey = await keyManager.getPublicKey(newUserId, 'ECC');
       const hmacSecret = await keyManager.getHMACSecret(newUserId);
 
+      // Debug logging
+      console.log(`[Registration] Keys retrieved for user ${newUserId}`);
+      console.log(`[Registration] RSA key starts with: ${rsaPublicKey?.substring(0, 50) || 'UNDEFINED'}`);
+      console.log(`[Registration] ECC key starts with: ${eccPublicKey?.substring(0, 50) || 'UNDEFINED'}`);
+
       // Encrypt user data using the user's public keys
+      console.log(`[Registration] Starting encryption for user ${newUserId}`);
       const nameEncrypted = rsa.encrypt(fullname, rsaPublicKey);
+      console.log(`[Registration] RSA encryption successful`);
+      
       const emailEncrypted = ecc.encrypt(email, eccPublicKey);
+      console.log(`[Registration] ECC encryption successful`);
+      
       const studentIdEncrypted = student_id ? rsa.encrypt(student_id, rsaPublicKey) : null;
       
       // Generate HMAC for data integrity
@@ -709,10 +784,17 @@ app.post('/api/register', async (req, res) => {
         [nameEncrypted, emailEncrypted, studentIdEncrypted, integrityTag, newUserId]
       );
     } catch (encryptError) {
-      console.error('Error encrypting user data:', encryptError);
+      console.error('DETAILED Encryption error:', {
+        message: encryptError.message,
+        stack: encryptError.stack,
+        userId: newUserId
+      });
       // Delete user if encryption fails
       await dbPool.execute('DELETE FROM users WHERE id = ?', [newUserId]);
-      return res.status(500).json({ success: false, message: 'Failed to encrypt user data.' });
+      return res.status(500).json({ 
+        success: false, 
+        message: `Failed to encrypt user data: ${encryptError.message}` 
+      });
     }
 
     res.status(201).json({ 

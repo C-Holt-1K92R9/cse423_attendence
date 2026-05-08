@@ -230,12 +230,26 @@ class SimplifiedECCEncryption {
 
   encrypt(data, publicKey) {
     try {
+      // Validate input
+      if (!publicKey || typeof publicKey !== 'string') {
+        throw new Error(`Invalid publicKey parameter. Expected string, got ${typeof publicKey}. First 100 chars: ${JSON.stringify(publicKey)?.substring(0, 100)}`);
+      }
+
+      if (!publicKey.includes('BEGIN') || !publicKey.includes('END')) {
+        throw new Error(`publicKey does not appear to be in PEM format. First 100 chars: ${publicKey.substring(0, 100)}`);
+      }
+
+      if (publicKey.includes('PRIVATE KEY')) {
+        throw new Error(`CRITICAL: A PRIVATE KEY was passed instead of PUBLIC KEY to ECC encrypt. First 100 chars: ${publicKey.substring(0, 100)}`);
+      }
+
       const { publicKey: ephemeralPub, privateKey: ephemeralPriv } = this.generateKeyPair();
       
-      // Convert PEM public key to KeyObject
+      // Convert both keys to KeyObjects
       const publicKeyObj = crypto.createPublicKey({ key: publicKey, format: 'pem' });
+      const ephemeralPrivObj = crypto.createPrivateKey({ key: ephemeralPriv, format: 'pem' });
       
-      const sharedSecret = crypto.diffieHellman({ privateKey: ephemeralPriv, publicKey: publicKeyObj });
+      const sharedSecret = crypto.diffieHellman({ privateKey: ephemeralPrivObj, publicKey: publicKeyObj });
       
       const iv = crypto.randomBytes(16);
       const derived = crypto.hkdfSync('sha256', sharedSecret, iv, 'enc', 32);
