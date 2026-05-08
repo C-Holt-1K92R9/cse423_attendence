@@ -123,22 +123,37 @@
                 
                 const user = await response.json();
                 
-                // Set profile information
-                document.getElementById('userName').textContent = user.Name;
-                document.getElementById('userType').textContent = user.type === 0 ? 'Student Account' : 'Faculty Account';
-                document.getElementById('fullname').value = user.Name;
-                document.getElementById('email').value = user.Email;
+                // Use decrypted fields if available, fallback to plaintext
+                const displayName = user.name || user.Name || 'User';
+                const displayEmail = user.email || user.Email || '';
+                const displayStudentId = user.student_id || user.StudentID || null;
                 
-                if (user.Photo_url) {
-                    document.getElementById('profilePhoto').src = user.Photo_url;
+                // Set profile information
+                document.getElementById('userName').textContent = displayName;
+                document.getElementById('userType').textContent = user.type === 0 ? 'Student Account' : 'Faculty Account';
+                document.getElementById('fullname').value = displayName;
+                document.getElementById('email').value = displayEmail;
+                
+                if (user.photo_url || user.Photo_url) {
+                    document.getElementById('profilePhoto').src = user.photo_url || user.Photo_url;
                 } else {
                     document.getElementById('profilePhoto').src = 'https://via.placeholder.com/96';
                 }
 
                 // Show student ID section only for students
-                if (user.type === 0 && user.StudentID) {
+                if (user.type === 0 && displayStudentId) {
                     document.getElementById('studentIdSection').classList.remove('hidden');
-                    document.getElementById('studentId').value = user.StudentID;
+                    document.getElementById('studentId').value = displayStudentId;
+                }
+
+                // Show decryption status in console
+                if (user.encrypted) {
+                    console.log('[Profile] Data decrypted successfully', {
+                        encrypted: user.encrypted,
+                        integrityValid: user.integrityValid
+                    });
+                } else if (user.decryptionFailed) {
+                    console.warn('[Profile] Data decryption failed, showing plaintext fallback:', user.error);
                 }
 
                 // Store user type for back button navigation
