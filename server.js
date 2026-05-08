@@ -893,8 +893,8 @@ app.post('/api/register', async (req, res) => {
     // Now retrieve the generated public keys for encryption
     try {
       const rsaPublicKey = await keyManager.getPublicKey(newUserId, 'RSA');
-      const eccPublicKey = await KeyManager.getPublicKey(newUserId, 'ECC');
-      const hmacSecret = await KeyManager.getHMACSecret(newUserId);
+      const eccPublicKey = await keyManager.getPublicKey(newUserId, 'ECC');
+      const hmacSecret = await keyManager.getHMACSecret(newUserId);
 
       // Debug logging
       console.log(`[Registration] Keys retrieved for user ${newUserId}`);

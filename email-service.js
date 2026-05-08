@@ -178,42 +178,42 @@ async function sendPasswordResetEmail(userEmail, resetToken, userName) {
  */
 async function sendNotificationEmail(userEmail, userName, subject, message) {
   try {
-    const client = getMailjetClient();
+    if (!process.env.MJ_APIKEY_PUBLIC || !process.env.MJ_APIKEY_PRIVATE) {
+      throw new Error('Mailjet API keys not configured in environment variables');
+    }
 
-    const request = client
-      .post('send', { version: 'v3.1' })
-      .request({
-        Messages: [
-          {
-            From: {
-              Email: process.env.FROM_EMAIL || 'noreply@attendence.app',
-              Name: 'Attendance Management System'
-            },
-            To: [
-              {
-                Email: userEmail,
-                Name: userName
-              }
-            ],
-            Subject: subject,
-            TextPart: message,
-            HTMLPart: `
-              <html>
-                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                  <h2>${subject}</h2>
-                  <p>Hello <strong>${userName}</strong>,</p>
-                  <p>${message}</p>
-                  
-                  <hr style="border: none; border-top: 1px solid #ddd; margin-top: 40px;">
-                  <p style="color: #999; font-size: 12px;">
-                    Attendance Management System | BRACU
-                  </p>
-                </body>
-              </html>
-            `
-          }
-        ]
-      });
+    const request = mailjet.post('send', { version: 'v3.1' }).request({
+      Messages: [
+        {
+          From: {
+            Email: process.env.FROM_EMAIL || 'noreply@attendence.app',
+            Name: 'Attendance Management System'
+          },
+          To: [
+            {
+              Email: userEmail,
+              Name: userName
+            }
+          ],
+          Subject: subject,
+          TextPart: message,
+          HTMLPart: `
+            <html>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2>${subject}</h2>
+                <p>Hello <strong>${userName}</strong>,</p>
+                <p>${message}</p>
+                
+                <hr style="border: none; border-top: 1px solid #ddd; margin-top: 40px;">
+                <p style="color: #999; font-size: 12px;">
+                  Attendance Management System | BRACU
+                </p>
+              </body>
+            </html>
+          `
+        }
+      ]
+    });
 
     const result = await request;
     console.log('[Email] Notification email sent successfully to:', userEmail);
