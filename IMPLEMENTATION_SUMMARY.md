@@ -10,12 +10,10 @@
 - ✅ Session management with MySQL store
 
 ### 2. **Data Encryption - Asymmetric Only** ✅ (REQUIREMENT MET)
-**User Information Encrypted:**
+**User Information Encrypted:** 
 - Name: Encrypted using **RSA-2048**
 - Email: Encrypted using **ECC (P-256)**
 - Student ID: Encrypted using **RSA-2048**
-- Posts Title: Encrypted using **RSA-2048**
-- Posts Content: Encrypted using **ECC (P-256)**
 
 **Implementation Details:**
 - All encryption algorithms implemented from scratch (no built-in framework encryption used)
@@ -64,27 +62,7 @@
 - Updates re-encrypt with current keys
 - Integrity verified before decryption
 
-### 7. **Posts Feature (Create, View, Edit, Delete)** ✅
-**File:** New endpoints in `server.js`
-
-**Endpoints:**
-- `POST /api/posts/create` - Create encrypted post
-- `GET /api/posts/my` - Get user's posts (decrypted)
-- `GET /api/posts/public` - Browse public posts
-- `POST /api/posts/:postId/update` - Update post
-- `POST /api/posts/:postId/delete` - Delete post
-
-**Visibility Controls:**
-- `private` - Only user and admins
-- `public` - All users
-- `admin_only` - Admins only
-
-**Encryption Strategy:**
-- Title: RSA-2048 (asymmetric)
-- Content: ECC P-256 (asymmetric)
-- HMAC tag: For integrity verification
-
-### 8. **Message Authentication Code (MAC)** ✅
+### 7. **Message Authentication Code (MAC)** ✅
 **File:** `hmac.js`
 
 **Implementation:**
@@ -128,11 +106,6 @@
 **Student Permissions (type 0):**
 - view_own_profile
 - edit_own_profile
-- view_own_posts
-- create_posts
-- edit_own_posts
-- delete_own_posts
-- view_public_posts
 - submit_attendance
 - view_attendance_records
 
@@ -140,8 +113,6 @@
 - view_all_users
 - edit_any_user
 - delete_user
-- view_all_posts
-- delete_any_post
 - manage_permissions
 - view_audit_logs
 - manage_keys
@@ -174,7 +145,6 @@
 - encryption_keys      : RSA and ECC key storage
 - hmac_secrets         : HMAC secret keys
 - key_audit_log        : Key operation audit trail
-- posts                : Encrypted posts
 - role_permissions     : RBAC permission matrix
 - access_control_log   : Access attempt logging
 - data_integrity_log   : Data tampering detection
@@ -207,7 +177,6 @@ POST /api/profile/update               - Update encrypted profile
 | RBAC System | ✅ | rbac.js |
 | User Registration | ✅ | server.js |
 | User Profile | ✅ | server.js |
-| Posts Feature | ✅ | server.js |
 | Security Endpoints | ✅ | server.js |
 | Database Schema | ✅ | database-update.sql |
 | 2-Step Verification | ⏭️ | Skipped (Vercel limitation) |

@@ -48,28 +48,6 @@ CREATE TABLE IF NOT EXISTS `hmac_secrets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- Table: posts (User-generated content)
--- ============================================
-CREATE TABLE IF NOT EXISTS `posts` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `user_id` INT NOT NULL,
-  `title_encrypted` LONGTEXT NOT NULL COMMENT 'Encrypted using RSA',
-  `content_encrypted` LONGTEXT NOT NULL COMMENT 'Encrypted using ECC',
-  `original_title` VARCHAR(255) COMMENT 'Plaintext for searching/indexing only',
-  `original_content` TEXT COMMENT 'Plaintext for searching/indexing only',
-  `data_integrity_tag` VARCHAR(255) NOT NULL COMMENT 'HMAC for integrity verification',
-  `is_published` BOOLEAN DEFAULT TRUE,
-  `visibility` ENUM('public', 'private', 'admin_only') DEFAULT 'private',
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted_at` TIMESTAMP NULL,
-  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  INDEX `idx_user_id` (`user_id`),
-  INDEX `idx_visibility` (`visibility`),
-  INDEX `idx_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================
 -- Table: key_audit_log
 -- ============================================
 CREATE TABLE IF NOT EXISTS `key_audit_log` (
@@ -136,11 +114,6 @@ INSERT IGNORE INTO role_permissions (user_type, permission, description) VALUES
 -- Student Permissions
 (0, 'view_own_profile', 'View their own profile information'),
 (0, 'edit_own_profile', 'Edit their own profile'),
-(0, 'view_own_posts', 'View their own posts'),
-(0, 'create_posts', 'Create new posts'),
-(0, 'edit_own_posts', 'Edit their own posts'),
-(0, 'delete_own_posts', 'Delete their own posts'),
-(0, 'view_public_posts', 'View public posts from other users'),
 (0, 'submit_attendance', 'Submit attendance'),
 (0, 'view_attendance_records', 'View their own attendance records'),
 
@@ -148,8 +121,6 @@ INSERT IGNORE INTO role_permissions (user_type, permission, description) VALUES
 (1, 'view_all_users', 'View all user profiles'),
 (1, 'edit_any_user', 'Edit any user profile'),
 (1, 'delete_user', 'Delete user accounts'),
-(1, 'view_all_posts', 'View all posts regardless of visibility'),
-(1, 'delete_any_post', 'Delete any post'),
 (1, 'manage_permissions', 'Manage user permissions'),
 (1, 'view_audit_logs', 'View system audit logs'),
 (1, 'manage_keys', 'Manage encryption keys'),

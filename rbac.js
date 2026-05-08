@@ -108,55 +108,6 @@ class RBACManager {
   }
 
   /**
-   * Check if user can delete a post
-   * @param {number} userId - User ID attempting delete
-   * @param {number} userType - User type
-   * @param {number} postUserId - User ID who created post
-   * @returns {Promise<boolean>} True if allowed
-   */
-  async canDeletePost(userId, userType, postUserId) {
-    // Users can delete their own posts
-    if (userId === postUserId) {
-      return await this.hasPermission(userId, userType, 'delete_own_posts');
-    }
-    
-    // Admins can delete any post
-    if (userType === 1) {
-      return await this.hasPermission(userId, userType, 'delete_any_post');
-    }
-    
-    return false;
-  }
-
-  /**
-   * Check if user can view post based on visibility
-   * @param {number} userId - User ID viewing
-   * @param {number} userType - User type
-   * @param {number} postUserId - User ID who created post
-   * @param {string} visibility - Post visibility level
-   * @returns {Promise<boolean>} True if allowed
-   */
-  async canViewPost(userId, userType, postUserId, visibility) {
-    // Own posts are always viewable
-    if (userId === postUserId) return true;
-    
-    // Public posts visible to all
-    if (visibility === 'public') return true;
-    
-    // Admin-only posts only for admins
-    if (visibility === 'admin_only') {
-      return userType === 1;
-    }
-    
-    // Private posts only for owner
-    if (visibility === 'private') {
-      return false;
-    }
-    
-    return false;
-  }
-
-  /**
    * Get user's effective permissions
    * @param {number} userType - User type
    * @returns {Promise<Object>} Object with permission flags
@@ -171,10 +122,6 @@ class RBACManager {
       can: {
         viewOwnProfile: permissions.includes('view_own_profile'),
         editOwnProfile: permissions.includes('edit_own_profile'),
-        createPosts: permissions.includes('create_posts'),
-        viewPublicPosts: permissions.includes('view_public_posts'),
-        viewAllPosts: permissions.includes('view_all_posts'),
-        deleteAnyPost: permissions.includes('delete_any_post'),
         manageUsers: permissions.includes('edit_any_user'),
         viewAuditLogs: permissions.includes('view_audit_logs'),
         manageKeys: permissions.includes('manage_keys'),

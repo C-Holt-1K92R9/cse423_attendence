@@ -438,280 +438,6 @@ app.get('/api/logout', async (req, res) => {
 });
 
 // ============================================
-// POSTS API - Encrypted Content Management
-// ============================================
-
-/**
- * Create a new post with encryption
- * Encrypts title with RSA, content with ECC
- * Stores integrity tags for tamper detection
- */
-app.post('/api/posts/create', async (req, res) => {
-  try {
-    const user = await getRememberMeUser(req.cookies);
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    // Check permission
-    const hasPermission = await rbacManager.hasPermission(user.id, user.type, 'create_posts');
-    if (!hasPermission) {
-      return res.status(403).json({ success: false, message: 'Access Denied: No permission to create posts' });
-    }
-
-    const { title, content, visibility } = req.body;
-
-    // Validation
-    if (!title || !content) {
-      return res.status(400).json({ success: false, message: 'Title and content are required.' });
-    }
-
-    if (title.length < 3 || title.length > 255) {
-      return res.status(400).json({ success: false, message: 'Title must be between 3 and 255 characters.' });
-    }
-
-    if (content.length < 10) {
-      return res.status(400).json({ success: false, message: 'Content must be at least 10 characters.' });
-    }
-
-    const finalVisibility = visibility || 'private';
-
-    try {
-      // Get user's RSA and ECC keys
-      const rsaPublicKey = await keyManager.getPublicKey(user.id, 'RSA');
-      const eccPublicKey = await keyManager.getPublicKey(user.id, 'ECC');
-      const hmacSecret = await keyManager.getHMACSecret(user.id);
-
-      // Encrypt title with RSA
-      const titleEncrypted = rsa.encrypt(title, rsaPublicKey);
-
-      // Encrypt content with ECC
-      const contentEncrypted = ecc.encrypt(content, eccPublicKey);
-
-      // Generate data integrity tag
-      const dataToAuthenticate = { title, content, visibility: finalVisibility };
-      const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
-
-      // Store post
-      const [result] = await dbPool.execute(
-        `INSERT INTO posts (user_id, title_encrypted, content_encrypted, original_title, original_content, data_integrity_tag, visibility)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [user.id, titleEncrypted, contentEncrypted, title, content, integrityTag, finalVisibility]
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'Post created successfully with encryption.',
-        postId: result.insertId,
-        encrypted: true
-      });
-    } catch (encryptError) {
-      console.error('Encryption error:', encryptError);
-      res.status(500).json({ success: false, message: 'Error encrypting post data.' });
-    }
-  } catch (error) {
-    console.error('Error creating post:', error);
-    res.status(500).json({ success: false, message: 'Error creating post.' });
-  }
-});
-
-/**
- * Get user's posts with decryption
- */
-app.get('/api/posts/my', async (req, res) => {
-  try {
-    const user = await getRememberMeUser(req.cookies);
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    // Check permission
-    const hasPermission = await rbacManager.hasPermission(user.id, user.type, 'view_own_posts');
-    if (!hasPermission) {
-      return res.status(403).json({ success: false, message: 'Access Denied' });
-    }
-
-    const [posts] = await dbPool.execute(
-      `SELECT * FROM posts WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`,
-      [user.id]
-    );
-
-    // Decrypt posts for user
-    const decryptedPosts = [];
-    for (const post of posts) {
-      try {
-        const rsaPrivateKey = await keyManager.getPrivateKey(user.id, 'RSA');
-        const eccPrivateKey = await keyManager.getPrivateKey(user.id, 'ECC');
-        const hmacSecret = await keyManager.getHMACSecret(user.id);
-
-        // Decrypt
-        const titleDecrypted = rsa.decrypt(post.title_encrypted, rsaPrivateKey);
-        const contentDecrypted = ecc.decrypt(post.content_encrypted, eccPrivateKey);
-
-        // Verify integrity
-        const dataToVerify = { title: titleDecrypted, content: contentDecrypted, visibility: post.visibility };
-        const isValid = HMACValidator.verifyHMAC(dataToVerify, post.data_integrity_tag, hmacSecret);
-
-        decryptedPosts.push({
-          id: post.id,
-          title: titleDecrypted,
-          content: contentDecrypted,
-          visibility: post.visibility,
-          integrityValid: isValid,
-          created_at: post.created_at,
-          updated_at: post.updated_at
-        });
-      } catch (decryptError) {
-        console.error(`Error decrypting post ${post.id}:`, decryptError);
-      }
-    }
-
-    res.json({ success: true, posts: decryptedPosts });
-  } catch (error) {
-    console.error('Error fetching posts:', error);
-    res.status(500).json({ success: false, message: 'Error fetching posts.' });
-  }
-});
-
-/**
- * Get all public posts
- */
-app.get('/api/posts/public', async (req, res) => {
-  try {
-    const user = await getRememberMeUser(req.cookies);
-    
-    let query = 'SELECT * FROM posts WHERE deleted_at IS NULL';
-    const params = [];
-
-    if (!user) {
-      // Not logged in - only public posts
-      query += ' AND visibility = ?';
-      params.push('public');
-    } else if (user.type === 0) {
-      // Student - public and own posts
-      query += ' AND (visibility = ? OR user_id = ?)';
-      params.push('public', user.id);
-    } else {
-      // Admin - all posts
-    }
-
-    query += ' ORDER BY created_at DESC';
-
-    const [posts] = await dbPool.execute(query, params);
-
-    // Attempt to decrypt visible posts
-    const decryptedPosts = [];
-    for (const post of posts) {
-      try {
-        const postUser = posts.find(p => p.id === post.id) ? await dbPool.execute('SELECT id FROM users WHERE id = ?', [post.user_id]) : null;
-        
-        // For now, return encrypted posts - decryption only for authorized users
-        decryptedPosts.push({
-          id: post.id,
-          title: post.original_title, // Show plaintext title for browsing
-          preview: post.original_content.substring(0, 100) + '...',
-          visibility: post.visibility,
-          created_at: post.created_at,
-          authorId: post.user_id
-        });
-      } catch (error) {
-        console.error(`Error processing post ${post.id}:`, error);
-      }
-    }
-
-    res.json({ success: true, posts: decryptedPosts });
-  } catch (error) {
-    console.error('Error fetching public posts:', error);
-    res.status(500).json({ success: false, message: 'Error fetching posts.' });
-  }
-});
-
-/**
- * Update a post with encryption
- */
-app.post('/api/posts/:postId/update', async (req, res) => {
-  try {
-    const user = await getRememberMeUser(req.cookies);
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { postId } = req.params;
-    const { title, content, visibility } = req.body;
-
-    const [posts] = await dbPool.execute('SELECT * FROM posts WHERE id = ?', [postId]);
-    if (posts.length === 0) {
-      return res.status(404).json({ success: false, message: 'Post not found.' });
-    }
-
-    const post = posts[0];
-
-    // Check permission
-    if (post.user_id !== user.id && user.type !== 1) {
-      return res.status(403).json({ success: false, message: 'Access Denied' });
-    }
-
-    try {
-      const rsaPublicKey = await keyManager.getPublicKey(user.id, 'RSA');
-      const eccPublicKey = await keyManager.getPublicKey(user.id, 'ECC');
-      const hmacSecret = await keyManager.getHMACSecret(user.id);
-
-      const titleEncrypted = rsa.encrypt(title, rsaPublicKey);
-      const contentEncrypted = ecc.encrypt(content, eccPublicKey);
-
-      const dataToAuthenticate = { title, content, visibility };
-      const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
-
-      await dbPool.execute(
-        `UPDATE posts SET title_encrypted = ?, content_encrypted = ?, original_title = ?, original_content = ?, data_integrity_tag = ?, visibility = ?, updated_at = NOW()
-         WHERE id = ?`,
-        [titleEncrypted, contentEncrypted, title, content, integrityTag, visibility, postId]
-      );
-
-      res.json({ success: true, message: 'Post updated successfully.' });
-    } catch (encryptError) {
-      console.error('Encryption error:', encryptError);
-      res.status(500).json({ success: false, message: 'Error encrypting post data.' });
-    }
-  } catch (error) {
-    console.error('Error updating post:', error);
-    res.status(500).json({ success: false, message: 'Error updating post.' });
-  }
-});
-
-/**
- * Delete a post
- */
-app.post('/api/posts/:postId/delete', async (req, res) => {
-  try {
-    const user = await getRememberMeUser(req.cookies);
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { postId } = req.params;
-
-    const [posts] = await dbPool.execute('SELECT * FROM posts WHERE id = ?', [postId]);
-    if (posts.length === 0) {
-      return res.status(404).json({ success: false, message: 'Post not found.' });
-    }
-
-    // Check RBAC permission
-    const canDelete = await rbac.canDeletePost(user.id, user.type, posts[0].user_id);
-    if (!canDelete) {
-      return res.status(403).json({ success: false, message: 'Access Denied' });
-    }
-
-    await dbPool.execute('UPDATE posts SET deleted_at = NOW() WHERE id = ?', [postId]);
-
-    res.json({ success: true, message: 'Post deleted successfully.' });
-  } catch (error) {
-    console.error('Error deleting post:', error);
-    res.status(500).json({ success: false, message: 'Error deleting post.' });
-  }
-});
-
-// ============================================
 // ENCRYPTION & SECURITY MANAGEMENT ENDPOINTS
 // ============================================
 
@@ -937,42 +663,56 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only @bracu.ac.bd and @g.bracu.ac.bd emails are allowed.' });
     }
 
-    // Get RSA and ECC public keys (use default system keys for new users initially)
-    // In production, each user should have their own keys
-    const { publicKey: rsaPub } = rsa.generateKeyPair();
-    const { publicKey: eccPub } = ecc.generateKeyPair();
-
-    // Encrypt user data using asymmetric encryption
-    const nameEncrypted = rsa.encrypt(fullname, rsaPub); // Use RSA for name
-    const emailEncrypted = ecc.encrypt(email, eccPub);   // Use ECC for email
-    
-    // Generate HMAC for data integrity
-    const dataToAuthenticate = {
-      email,
-      fullname,
-      student_id: student_id || null,
-      userType,
-      timestamp: new Date().toISOString()
-    };
-    const hmacSecret = crypto.randomBytes(32).toString('hex');
-    const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
-
-    // Insert new user with encrypted data
+    // Insert new user first (without encrypted data, will update after key generation)
     const [result] = await dbPool.execute(
-      `INSERT INTO users (Email, Password, Name, StudentID, type, name_encrypted, email_encrypted, student_id_encrypted, data_integrity_tag) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [email, hashedPassword, fullname, student_id || null, userType, nameEncrypted, emailEncrypted, 
-       student_id ? rsa.encrypt(student_id, rsaPub) : null, integrityTag]
+      `INSERT INTO users (Email, Password, Name, StudentID, type) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [email, hashedPassword, fullname, student_id || null, userType]
     );
 
     const newUserId = result.insertId;
 
-    // Generate and store encryption keys for the user
+    // Generate and store encryption keys for the user FIRST
     try {
       await keyManager.generateKeysForUser(newUserId);
     } catch (keyError) {
       console.error('Error generating user keys:', keyError);
-      // Continue with registration even if key generation fails initially
+      // Delete user if key generation fails
+      await dbPool.execute('DELETE FROM users WHERE id = ?', [newUserId]);
+      return res.status(500).json({ success: false, message: 'Failed to generate encryption keys.' });
+    }
+
+    // Now retrieve the generated public keys for encryption
+    try {
+      const rsaPublicKey = await keyManager.getPublicKey(newUserId, 'RSA');
+      const eccPublicKey = await keyManager.getPublicKey(newUserId, 'ECC');
+      const hmacSecret = await keyManager.getHMACSecret(newUserId);
+
+      // Encrypt user data using the user's public keys
+      const nameEncrypted = rsa.encrypt(fullname, rsaPublicKey);
+      const emailEncrypted = ecc.encrypt(email, eccPublicKey);
+      const studentIdEncrypted = student_id ? rsa.encrypt(student_id, rsaPublicKey) : null;
+      
+      // Generate HMAC for data integrity
+      const dataToAuthenticate = {
+        email,
+        fullname,
+        student_id: student_id || null,
+        userType,
+        timestamp: new Date().toISOString()
+      };
+      const integrityTag = HMACValidator.generateHMAC(dataToAuthenticate, hmacSecret);
+
+      // Update user record with encrypted data
+      await dbPool.execute(
+        `UPDATE users SET name_encrypted = ?, email_encrypted = ?, student_id_encrypted = ?, data_integrity_tag = ? WHERE id = ?`,
+        [nameEncrypted, emailEncrypted, studentIdEncrypted, integrityTag, newUserId]
+      );
+    } catch (encryptError) {
+      console.error('Error encrypting user data:', encryptError);
+      // Delete user if encryption fails
+      await dbPool.execute('DELETE FROM users WHERE id = ?', [newUserId]);
+      return res.status(500).json({ success: false, message: 'Failed to encrypt user data.' });
     }
 
     res.status(201).json({ 

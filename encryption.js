@@ -231,7 +231,11 @@ class SimplifiedECCEncryption {
   encrypt(data, publicKey) {
     try {
       const { publicKey: ephemeralPub, privateKey: ephemeralPriv } = this.generateKeyPair();
-      const sharedSecret = crypto.diffieHellman({ privateKey: ephemeralPriv, publicKey });
+      
+      // Convert PEM public key to KeyObject
+      const publicKeyObj = crypto.createPublicKey({ key: publicKey, format: 'pem' });
+      
+      const sharedSecret = crypto.diffieHellman({ privateKey: ephemeralPriv, publicKey: publicKeyObj });
       
       const iv = crypto.randomBytes(16);
       const derived = crypto.hkdfSync('sha256', sharedSecret, iv, 'enc', 32);
@@ -243,7 +247,7 @@ class SimplifiedECCEncryption {
         encrypted[i] = dataBuffer[i] ^ derived[i % derived.length];
       }
 
-      const ephemeralPubDer = crypto.createPublicKey(publicKey).export({ format: 'der', type: 'spki' });
+      const ephemeralPubDer = crypto.createPublicKey(ephemeralPub).export({ format: 'der', type: 'spki' });
       const combined = Buffer.concat([iv, ephemeralPubDer, encrypted]);
       
       return combined.toString('base64');
@@ -260,7 +264,11 @@ class SimplifiedECCEncryption {
       const ciphertext = combined.slice(16 + 91);
 
       const ephemeralPub = crypto.createPublicKey({ key: ephemeralPubDer, format: 'der', type: 'spki' });
-      const sharedSecret = crypto.diffieHellman({ privateKey, publicKey: ephemeralPub });
+      
+      // Convert PEM private key to KeyObject
+      const privateKeyObj = crypto.createPrivateKey({ key: privateKey, format: 'pem' });
+      
+      const sharedSecret = crypto.diffieHellman({ privateKey: privateKeyObj, publicKey: ephemeralPub });
       
       const derived = crypto.hkdfSync('sha256', sharedSecret, iv, 'enc', 32);
       
