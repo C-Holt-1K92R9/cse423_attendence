@@ -15,7 +15,7 @@ function getMailjetClient() {
     if (!process.env.MJ_APIKEY_PUBLIC || !process.env.MJ_APIKEY_PRIVATE) {
       throw new Error('Mailjet API keys not configured. Set MJ_APIKEY_PUBLIC and MJ_APIKEY_PRIVATE in environment variables.');
     }
-    mailjet = require('node-mailjet').connect(
+    mailjet = require('node-mailjet').apiConnect(
       process.env.MJ_APIKEY_PUBLIC,
       process.env.MJ_APIKEY_PRIVATE
     );
