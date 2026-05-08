@@ -173,9 +173,8 @@ passport.use(new GoogleStrategy({
   const { id: googleId, displayName: name } = profile;
   const email = profile.emails && profile.emails.length > 0 ? profile.emails[0].value : null;
   if (!email) return done(new Error("No email found in Google profile"), null);
-  const authorizedDomains = ["g.bracu.ac.bd", "bracu.ac.bd"];
+  // No domain restriction - accept any email
   const domain = email.split('@')[1];
-  if (!authorizedDomains.includes(domain)) return done(null, false, { message: "Domain is not authorized" });
 
   try {
     let [rows] = await dbPool.execute(
@@ -864,7 +863,8 @@ app.post('/api/register', async (req, res) => {
       // Faculty domain - no StudentID required
       userType = 1;
     } else {
-      return res.status(400).json({ success: false, message: 'Only @bracu.ac.bd and @g.bracu.ac.bd emails are allowed.' });
+      // Any other email - treated as student account
+      userType = 0;
     }
 
     // Generate verification token (32 random bytes, hex encoded)
@@ -882,7 +882,7 @@ app.post('/api/register', async (req, res) => {
 
     // Generate and store encryption keys for the user FIRST
     try {
-      await KeyManager.generateKeysForUser(newUserId);
+      await keyManager.generateKeysForUser(newUserId);
     } catch (keyError) {
       console.error('Error generating user keys:', keyError);
       // Delete user if key generation fails
@@ -892,7 +892,7 @@ app.post('/api/register', async (req, res) => {
 
     // Now retrieve the generated public keys for encryption
     try {
-      const rsaPublicKey = await KeyManager.getPublicKey(newUserId, 'RSA');
+      const rsaPublicKey = await keyManager.getPublicKey(newUserId, 'RSA');
       const eccPublicKey = await KeyManager.getPublicKey(newUserId, 'ECC');
       const hmacSecret = await KeyManager.getHMACSecret(newUserId);
 
