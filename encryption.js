@@ -7,29 +7,82 @@
 const crypto = require('crypto');
 
 // ============================================
-// RSA Encryption (Asymmetric)
+// RSA Helper Functions
+// ============================================
+
+// Function to compute base^expo mod m using BigInt
+function power(base, expo, m) {
+  let res = BigInt(1);
+  base = BigInt(base) % BigInt(m);
+  while (expo > 0) {
+    if (expo & BigInt(1)) {
+      res = (res * base) % BigInt(m);
+    }
+    base = (base * base) % BigInt(m);
+    expo = Math.floor(Number(expo) / 2);
+    expo = BigInt(expo);
+  }
+  return res;
+}
+
+// Function to find GCD
+function gcd(a, b) {
+  while (b !== BigInt(0)) {
+    let t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+// Function to find modular inverse of e modulo phi(n)
+function modInverse(e, phi) {
+  e = BigInt(e);
+  phi = BigInt(phi);
+  for (let d = BigInt(2); d < phi; d++) {
+    if ((e * d) % phi === BigInt(1)) {
+      return d;
+    }
+  }
+  return BigInt(-1);
+}
+
+// ============================================
+// RSA Encryption (Asymmetric) - Mathematical Implementation
 // ============================================
 class RSAEncryption {
   constructor() {
-    this.keySize = 2048; // 2048-bit RSA keys
+    this.primes = {
+      p: BigInt(7919),
+      q: BigInt(1009)
+    };
   }
 
   /**
-   * Generate RSA key pair
+   * Generate RSA key pair using mathematical approach
    * @returns {Object} {publicKey, privateKey}
    */
   generateKeyPair() {
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-      modulusLength: this.keySize,
-      publicKeyEncoding: {
-        type: 'spki',
-        format: 'pem'
-      },
-      privateKeyEncoding: {
-        type: 'pkcs8',
-        format: 'pem'
+    const p = this.primes.p;
+    const q = this.primes.q;
+
+    const n = p * q;
+    const phi = (p - BigInt(1)) * (q - BigInt(1));
+
+    // Choose e, where 1 < e < phi(n) and gcd(e, phi(n)) == 1
+    let e;
+    for (e = BigInt(2); e < phi; e++) {
+      if (gcd(e, phi) === BigInt(1)) {
+        break;
       }
-    });
+    }
+
+    // Compute d such that e * d ≡ 1 (mod phi(n))
+    const d = modInverse(e, phi);
+
+    // Store as JSON strings for PEM-like format
+    const publicKey = JSON.stringify({ e: e.toString(), n: n.toString() });
+    const privateKey = JSON.stringify({ d: d.toString(), n: n.toString() });
 
     return { publicKey, privateKey };
   }
@@ -37,20 +90,26 @@ class RSAEncryption {
   /**
    * Encrypt data with public key
    * @param {string} data - Data to encrypt
-   * @param {string} publicKey - PEM format public key
+   * @param {string} publicKey - JSON format public key
    * @returns {string} Encrypted data (base64)
    */
   encrypt(data, publicKey) {
     try {
-      const encrypted = crypto.publicEncrypt(
-        {
-          key: publicKey,
-          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-          oaepHash: 'sha256'
-        },
-        Buffer.from(data, 'utf8')
-      );
-      return encrypted.toString('base64');
+      const keyObj = JSON.parse(publicKey);
+      const e = BigInt(keyObj.e);
+      const n = BigInt(keyObj.n);
+
+      // Convert string to number array for encryption
+      const dataBuffer = Buffer.from(data, 'utf8');
+      const encryptedChunks = [];
+
+      for (let i = 0; i < dataBuffer.length; i++) {
+        const charCode = dataBuffer[i];
+        const encrypted = power(charCode, e, n);
+        encryptedChunks.push(encrypted.toString());
+      }
+
+      return Buffer.from(JSON.stringify(encryptedChunks)).toString('base64');
     } catch (error) {
       throw new Error(`RSA Encryption failed: ${error.message}`);
     }
@@ -59,20 +118,24 @@ class RSAEncryption {
   /**
    * Decrypt data with private key
    * @param {string} encryptedData - Base64 encrypted data
-   * @param {string} privateKey - PEM format private key
+   * @param {string} privateKey - JSON format private key
    * @returns {string} Decrypted data
    */
   decrypt(encryptedData, privateKey) {
     try {
-      const decrypted = crypto.privateDecrypt(
-        {
-          key: privateKey,
-          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-          oaepHash: 'sha256'
-        },
-        Buffer.from(encryptedData, 'base64')
-      );
-      return decrypted.toString('utf8');
+      const keyObj = JSON.parse(privateKey);
+      const d = BigInt(keyObj.d);
+      const n = BigInt(keyObj.n);
+
+      const encryptedChunks = JSON.parse(Buffer.from(encryptedData, 'base64').toString());
+      const decryptedChars = [];
+
+      for (const chunk of encryptedChunks) {
+        const charCode = power(BigInt(chunk), d, n);
+        decryptedChars.push(String.fromCharCode(Number(charCode)));
+      }
+
+      return decryptedChars.join('');
     } catch (error) {
       throw new Error(`RSA Decryption failed: ${error.message}`);
     }

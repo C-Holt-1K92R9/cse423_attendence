@@ -903,6 +903,7 @@ app.post('/api/register', async (req, res) => {
 
       // Encrypt user data using the user's public keys
       console.log(`[Registration] Starting encryption for user ${newUserId}`);
+      
       const nameEncrypted = rsa.encrypt(fullname, rsaPublicKey);
       console.log(`[Registration] RSA encryption successful`);
       
