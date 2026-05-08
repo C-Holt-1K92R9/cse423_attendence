@@ -75,10 +75,60 @@
 - Never stored or transmitted in plaintext
 - Password verification uses constant-time comparison
 
-### 4. **Two-Step Verification** ⏭️ (SKIPPED)
-- **Reason:** Vercel serverless functions don't allow email sending
-- **Alternative:** Not implemented as requested by user
-- **Note:** Can be added with external email service (SendGrid, AWS SES, etc.)
+### 4. **Two-Step Email Verification** ✅ (IMPLEMENTED)
+**Email Service:** Mailjet API for sending verification emails
+
+**Verification Process:**
+1. User registers account with email and password
+2. 32-byte random verification token generated (hex-encoded)
+3. Token stored in `verify_key` column with 24-hour expiration
+4. User account created with `verified = 0` (pending verification)
+5. Verification email sent to user's email address via Mailjet
+6. Email contains link: `https://your-domain.com/verify-email?token={token}`
+7. User clicks link to verify email
+8. Frontend posts token to `/api/verify-email` endpoint
+9. Server validates token and expiration
+10. User's `verified` column set to 1, token cleared
+11. User can now log in successfully
+
+**Database Columns Added:**
+- `verified` (BOOLEAN DEFAULT 0) - Verification status
+- `verify_key` (VARCHAR 255 UNIQUE) - Verification token
+- `verify_key_expires` (TIMESTAMP) - Token expiration time (24 hours)
+
+**Email Features:**
+- Professional HTML email template with branding
+- Automatic fallback to text version
+- 24-hour token expiration for security
+- Token validation to prevent brute force
+- Expired tokens require user to register again
+- Mailjet API integration with error handling
+
+**Email Configuration:**
+- From email: `${process.env.FROM_EMAIL}` or default to noreply@attendence.app
+- Send-from name: "Attendance Management System"
+- Email subject: "Verify Your Email - Attendance System"
+- Template includes styled button, plain link, and security notice
+
+**Login Verification Check:**
+- Login endpoint checks `verified` column before authentication
+- If user not verified: Returns 403 Forbidden with message to verify email
+- User cannot access system until email verified
+- Prevents unauthorized access even with correct credentials
+
+**Environment Variables Required:**
+```env
+MJ_APIKEY_PUBLIC=your_mailjet_public_key
+MJ_APIKEY_PRIVATE=your_mailjet_private_key
+FROM_EMAIL=your-sender-email@domain.com
+BASE_URL=https://your-production-url.com
+```
+
+**Frontend Updates:**
+- Registration success shows "Check your email for verification link"
+- Message displays recipient email and 24-hour expiration notice
+- Redirects to login after 5 seconds
+- Verification page auto-verifies when token clicked
 
 ### 5. **Key Management Module** ✅
 **File:** `key-management.js`
@@ -364,8 +414,9 @@ POST /debug/test-encrypt               - Debug: Test encryption cycle
 | User Profile (Read) | ✅ | server.js | Full decryption with integrity verification |
 | User Profile (Update) | ✅ | server.js | Re-encryption of updated data |
 | Security Endpoints | ✅ | server.js | Key status, rotation, access logs, debug endpoints |
-| Database Schema | ✅ | database-update.sql | 7 tables for security (users, encryption_keys, hmac_secrets, etc) |
-| 2-Step Verification | ⏭️ | N/A | Skipped (Vercel limitation - no email service) |
+| Database Schema | ✅ | database-update.sql | 8 tables for security (users, encryption_keys, hmac_secrets, etc) |
+| 2-Step Email Verification | ✅ | server.js, email-service.js | Mailjet API, 24-hour token expiration |
+| Email Service | ✅ | email-service.js | Verification emails, password reset, notifications |
 
 ## 🚀 Deployment
 
@@ -386,12 +437,22 @@ POST /debug/test-encrypt               - Debug: Test encryption cycle
 - ✅ Improved error messages with detailed debugging info
 - ✅ Added debug endpoints for testing encryption cycle
 - ✅ Fixed ECC KeyObject conversion for Diffie-Hellman operations
+- ✅ Implemented two-step email verification with Mailjet
+- ✅ Added email service module for transactional emails
+- ✅ Updated login to check email verification status
+- ✅ Added verification link handling and auto-verification page
 
 **Next Steps:**
-1. Run `database-update.sql` to update production database
-2. Test registration endpoint to verify key generation
-3. Test profile endpoint to verify decryption works
-4. Set encryption keys as rotatable (30-day cycle)
+1. Run `database-update.sql` to update production database with verification columns
+2. Configure Mailjet API keys in environment variables:
+   - `MJ_APIKEY_PUBLIC` - Mailjet public API key
+   - `MJ_APIKEY_PRIVATE` - Mailjet private API key
+   - `FROM_EMAIL` - Sender email address
+   - `BASE_URL` - Production URL for verification links
+3. Install dependencies: `npm install node-mailjet`
+4. Test registration to verify verification email is sent
+5. Test verification link clicking and email verification
+6. Test login blocked for unverified emails
 5. Monitor key_audit_log for rotation events
 6. Review access_control_log periodically
 

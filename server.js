@@ -19,6 +19,9 @@ const HMACValidator = require('./hmac');
 const KeyManager = require('./key-management');
 const RBACManager = require('./rbac');
 
+// Import email service
+const EmailService = require('./email-service');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -714,6 +717,15 @@ app.post('/api/login', async (req, res) => {
     const [rows] = await dbPool.execute(`SELECT * FROM users WHERE Email = ?`, [email]);
     if (rows.length === 0) return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     
+    // Check if user email is verified
+    if (!rows[0].verified) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Please verify your email before logging in. Check your inbox for the verification link.',
+        needsVerification: true 
+      });
+    }
+    
     // Use bcrypt.compare for password verification
     const passwordMatch = await bcrypt.compare(password, rows[0].Password);
     if (!passwordMatch) {
@@ -855,18 +867,22 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only @bracu.ac.bd and @g.bracu.ac.bd emails are allowed.' });
     }
 
-    // Insert new user first (without encrypted data, will update after key generation)
+    // Generate verification token (32 random bytes, hex encoded)
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verifyKeyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+    // Insert new user first with verified = 0 and verification token
     const [result] = await dbPool.execute(
-      `INSERT INTO users (Email, Password, Name, StudentID, type) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [email, hashedPassword, fullname, student_id || null, userType]
+      `INSERT INTO users (Email, Password, Name, StudentID, type, verified, verify_key, verify_key_expires) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [email, hashedPassword, fullname, student_id || null, userType, 0, verificationToken, verifyKeyExpiresAt]
     );
 
     const newUserId = result.insertId;
 
     // Generate and store encryption keys for the user FIRST
     try {
-      await keyManager.generateKeysForUser(newUserId);
+      await KeyManager.generateKeysForUser(newUserId);
     } catch (keyError) {
       console.error('Error generating user keys:', keyError);
       // Delete user if key generation fails
@@ -876,9 +892,9 @@ app.post('/api/register', async (req, res) => {
 
     // Now retrieve the generated public keys for encryption
     try {
-      const rsaPublicKey = await keyManager.getPublicKey(newUserId, 'RSA');
-      const eccPublicKey = await keyManager.getPublicKey(newUserId, 'ECC');
-      const hmacSecret = await keyManager.getHMACSecret(newUserId);
+      const rsaPublicKey = await KeyManager.getPublicKey(newUserId, 'RSA');
+      const eccPublicKey = await KeyManager.getPublicKey(newUserId, 'ECC');
+      const hmacSecret = await KeyManager.getHMACSecret(newUserId);
 
       // Debug logging
       console.log(`[Registration] Keys retrieved for user ${newUserId}`);
@@ -924,11 +940,22 @@ app.post('/api/register', async (req, res) => {
       });
     }
 
+    // Send verification email
+    try {
+      await EmailService.sendVerificationEmail(email, verificationToken, fullname);
+      console.log(`[Registration] Verification email sent to ${email}`);
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // Still allow registration, but log the error
+      // In production, you might want to handle this differently
+    }
+
     res.status(201).json({ 
       success: true, 
-      message: 'Account created successfully with encryption enabled.',
+      message: 'Account created successfully! Please check your email for verification link.',
       userId: newUserId,
-      encryptionEnabled: true 
+      encryptionEnabled: true,
+      verificationRequired: true 
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -936,7 +963,132 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/download_report', async (req, res) => {
+// Email verification endpoint
+app.post('/api/verify-email', async (req, res) => {
+  const { token } = req.body;
+  try {
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Verification token is required.' });
+    }
+
+    // Find user with this verification token
+    const [users] = await dbPool.execute(
+      `SELECT * FROM users WHERE verify_key = ? AND verified = 0`,
+      [token]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Invalid verification token or email already verified.' 
+      });
+    }
+
+    const user = users[0];
+
+    // Check if token has expired
+    if (new Date() > new Date(user.verify_key_expires)) {
+      return res.status(410).json({ 
+        success: false, 
+        message: 'Verification link has expired. Please register again.',
+        tokenExpired: true
+      });
+    }
+
+    // Update user as verified
+    await dbPool.execute(
+      `UPDATE users SET verified = 1, verify_key = NULL, verify_key_expires = NULL WHERE id = ?`,
+      [user.id]
+    );
+
+    console.log(`[Verification] Email verified for user ${user.id} (${user.Email})`);
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Email verified successfully! You can now log in.',
+      userEmail: user.Email
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ success: false, message: 'An error occurred during verification.' });
+  }
+});
+
+// Get verification page
+app.get('/verify-email', (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).send('Verification token is required.');
+  }
+  
+  // Render a simple verification page that will post to the API
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Email Verification</title>
+      <style>
+        body { font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+        .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+        h1 { color: #333; margin: 0 0 20px 0; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .message { margin-top: 20px; padding: 15px; border-radius: 4px; display: none; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Verifying Your Email...</h1>
+        <div class="spinner"></div>
+        <div id="message" class="message"></div>
+      </div>
+
+      <script>
+        // Auto-verify on page load
+        fetch('/api/verify-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: '${token}' })
+        })
+        .then(res => res.json())
+        .then(data => {
+          const messageEl = document.getElementById('message');
+          const spinner = document.querySelector('.spinner');
+          spinner.style.display = 'none';
+          messageEl.style.display = 'block';
+          
+          if (data.success) {
+            messageEl.className = 'message success';
+            messageEl.innerHTML = '<strong>Success!</strong><br>' + data.message + '<br><br><a href="/index.html">Go to Login</a>';
+          } else {
+            messageEl.className = 'message error';
+            messageEl.innerHTML = '<strong>Error:</strong><br>' + data.message + '<br><br>';
+            if (data.tokenExpired) {
+              messageEl.innerHTML += '<a href="/register.html">Register Again</a>';
+            } else {
+              messageEl.innerHTML += '<a href="/index.html">Back to Login</a>';
+            }
+          }
+        })
+        .catch(err => {
+          const messageEl = document.getElementById('message');
+          const spinner = document.querySelector('.spinner');
+          spinner.style.display = 'none';
+          messageEl.style.display = 'block';
+          messageEl.className = 'message error';
+          messageEl.innerHTML = '<strong>Error:</strong><br>An error occurred. Please try again.';
+        });
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+
   const sectionValue = req.body.section;
   try {
     const [rows] = await dbPool.execute(`SELECT * FROM records WHERE Section = ?`, [sectionValue]);
@@ -953,7 +1105,7 @@ app.post('/api/download_report', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to record attendance. A database error occurred.' });
   }
-});
+
 
 app.post('/api/attendance/stop', async (req, res) => {
   await dbPool.execute("UPDATE verification SET token = NULL WHERE date = ?", [new_column]);

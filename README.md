@@ -7,7 +7,8 @@ A secure, enterprise-grade attendance management system built with Node.js and E
 - **🔐 End-to-End Encryption**: All user data encrypted with asymmetric cryptography (RSA-2048 & ECC P-256)
 - **👥 Role-Based Access Control**: Student and Admin/Faculty roles with granular permissions
 - **🔑 Key Management**: Automatic key generation, secure storage, and rotation mechanisms
-- **📝 Attendance Tracking**: Student submission and admin review workflows
+- **� Email Verification**: Two-step verification via Mailjet with 24-hour token expiration
+- **�📝 Attendance Tracking**: Student submission and admin review workflows
 - **🛡️ Security Audit Logging**: Complete audit trails for all operations
 - **🔄 Session Management**: Secure sessions with remember-me functionality
 - **✅ Data Integrity**: HMAC-SHA256 validation for all sensitive data
@@ -37,6 +38,7 @@ A secure, enterprise-grade attendance management system built with Node.js and E
 | Requirement | Status | Implementation |
 |-------------|--------|-----------------|
 | User Authentication & Registration | ✅ | Email domain validation, bcrypt hashing, encryption at registration |
+| Two-Step Email Verification | ✅ | Mailjet API, 24-hour token expiration, auto-verification link |
 | Data Encryption - Asymmetric Only | ✅ | RSA-2048 for names/IDs, ECC P-256 for emails |
 | Password Security | ✅ | bcrypt with 10 salt rounds |
 | Two Different Algorithms | ✅ | RSA-2048 + ECC P-256 |
@@ -75,6 +77,12 @@ DB_NAME=attendance_db
 # Session
 SESSION_SECRET=your_random_secret_key
 
+# Email Service (Mailjet)
+MJ_APIKEY_PUBLIC=your_mailjet_public_key
+MJ_APIKEY_PRIVATE=your_mailjet_private_key
+FROM_EMAIL=noreply@yourdomain.com
+BASE_URL=http://localhost:3000
+
 # Server
 PORT=3000
 NODE_ENV=development
@@ -103,16 +111,30 @@ npm start
 **POST /api/register**
 - Register new user with email domain validation
 - Automatically generates encryption keys
-- Returns: `{ userId, encryptionEnabled: true }`
+- Sends verification email via Mailjet
+- Returns: `{ userId, encryptionEnabled: true, verificationRequired: true }`
 
 **POST /api/login**
 - Login with email and password
+- Checks if email is verified (blocks unverified users)
 - Sets secure session cookie
 - Returns: `{ success: true, userType }`
 
 **POST /api/logout**
 - Clears session and remember-me tokens
 - Returns: `{ success: true }`
+
+**POST /api/verify-email**
+- Verify user email with token from verification email
+- Accepts: `{ token: "verification_token" }`
+- Validates token expiration (24 hours)
+- Updates `verified = 1` on success
+- Returns: `{ success: true, userEmail: "user@domain.com" }`
+
+**GET /verify-email**
+- HTML verification page (called from email link)
+- Auto-submits verification token to `/api/verify-email`
+- Displays success/error message with redirect to login
 
 ### Profile Endpoints
 
@@ -379,6 +401,24 @@ Recommended:
 - Check session store is connected to MySQL
 - Verify SESSION_SECRET environment variable is set
 - Check browser cookie settings allow httpOnly cookies
+
+**"Verification email not received"**
+- Verify Mailjet API keys are set correctly in environment variables
+- Check spam/junk folder for verification email
+- Verify sender email (`FROM_EMAIL`) is registered with Mailjet
+- Check Mailjet account for email delivery logs
+
+**"Cannot log in - 'Please verify your email' error"**
+- User hasn't clicked verification link yet
+- Check spam folder for verification email
+- Verify token hasn't expired (24 hours)
+- If expired, user must register again
+
+**"Invalid verification token"**
+- Token has expired (24-hour limit)
+- User already verified this email
+- Token is incorrect or tampered
+- User must register again if token expired
 
 For more troubleshooting, see Testing & Troubleshooting Guide in [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md#-testing--troubleshooting-guide).
 
